@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Security Alerts{% endblock %}
+{% block page_title %}🚨 Security Alerts{% endblock %}
+
+{% block content %}
+<div class="pink-line"></div>
+
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">Unauthorized Access Alerts</h2>
+    {% set unresolved = alerts|selectattr('resolved','equalto',false)|list %}
+    <span class="badge {% if unresolved %}badge-danger{% else %}badge-success{% endif %}">
+      {{ unresolved|length }} unresolved
+    </span>
+  </div>
+  <div class="card-body">
+    {% if not alerts %}
+      <p style="text-align:center;color:var(--success);padding:2rem">
+        ✅ No unauthorized access detected. All clear!
+      </p>
+    {% else %}
+      {% for alert in alerts %}
+      <div class="alert-item {% if alert.resolved %}resolved{% endif %}" 
+           id="alert-row-{{ alert.id }}"
+           role="article"
+           aria-label="Alert from {{ alert.ip_address }}">
+        <div class="alert-item-icon" aria-hidden="true">🚨</div>
+        <div class="alert-item-body" style="flex:1">
+          <div class="alert-item-ip">{{ alert.ip_address }}</div>
+          <div class="alert-item-meta">
+            <strong>{{ alert.method }}</strong> {{ alert.endpoint }}
+            &nbsp;·&nbsp;
+            <time datetime="{{ alert.timestamp.isoformat() }}">
+              {{ alert.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+            </time>
+          </div>
+          {% if alert.user_agent %}
+          <div class="alert-item-meta" style="margin-top:.2rem;font-size:.75rem">
+            UA: {{ alert.user_agent[:80] }}{% if alert.user_agent|length > 80 %}…{% endif %}
+          </div>
+          {% endif %}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.5rem">
+          {% if alert.resolved %}
+            <span class="badge badge-success">Resolved</span>
+          {% else %}
+            <span class="badge badge-danger badge-dot">Active</span>
+            {% if current_user.role == 'admin' %}
+            <button class="btn btn-ghost btn-sm resolve-alert-btn"
+              data-alert-id="{{ alert.id }}"
+              aria-label="Resolve alert {{ alert.id }}">
+              ✓ Resolve
+            </button>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

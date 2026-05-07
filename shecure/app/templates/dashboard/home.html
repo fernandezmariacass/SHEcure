@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard Overview{% endblock %}
+
+{% block content %}
+<div class="pink-line"></div>
+
+<!-- Stats -->
+<div class="stats-grid" role="region" aria-label="Security statistics">
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-pink" aria-hidden="true">🛡️</div>
+    <div>
+      <div class="stat-value" id="total-logins">—</div>
+      <div class="stat-label">Total Logins</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-red" aria-hidden="true">🚨</div>
+    <div>
+      <div class="stat-value" style="color:var(--danger)">{{ alert_count }}</div>
+      <div class="stat-label">Open Alerts</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-green" aria-hidden="true">✅</div>
+    <div>
+      <div class="stat-value" id="success-logins">—</div>
+      <div class="stat-label">Successful Logins</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-amber" aria-hidden="true">⛔</div>
+    <div>
+      <div class="stat-value" id="blocked-attempts">—</div>
+      <div class="stat-label">Blocked Attempts</div>
+    </div>
+  </div>
+</div>
+
+<!-- Main grid -->
+<div class="grid-2" style="align-items:start">
+
+  <!-- Recent Access -->
+  <div class="card" role="region" aria-label="Recent access log">
+    <div class="card-header">
+      <h2 class="card-title">Recent Access</h2>
+      <span class="badge badge-pink">Live</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table aria-label="Recent access log table">
+        <thead>
+          <tr>
+            <th scope="col">IP Address</th>
+            <th scope="col">User</th>
+            <th scope="col">Status</th>
+            <th scope="col">Time</th>
+          </tr>
+        </thead>
+        <tbody id="live-activity-feed">
+          {% for log in recent_access %}
+          <tr>
+            <td class="text-mono">{{ log.ip_address }}</td>
+            <td>{{ log.username_attempted or '—' }}</td>
+            <td>
+              <span class="badge {% if log.status == 'success' %}badge-success{% elif log.status == 'blocked' %}badge-danger{% else %}badge-warning{% endif %} badge-dot">
+                {{ log.status }}
+              </span>
+            </td>
+            <td class="text-muted">{{ log.timestamp.strftime('%H:%M:%S') }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No logs yet</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-header" style="border-top:1px solid var(--gray-100);border-bottom:none;justify-content:flex-end">
+      <a href="{{ url_for('dashboard.activity') }}" class="btn btn-ghost btn-sm">View all →</a>
+    </div>
+  </div>
+
+  <!-- Alerts panel -->
+  <div class="card" role="region" aria-label="Security alerts">
+    <div class="card-header">
+      <h2 class="card-title">🚨 Security Alerts</h2>
+      {% if alert_count > 0 %}
+        <span class="badge badge-danger">{{ alert_count }} unresolved</span>
+      {% else %}
+        <span class="badge badge-success">All clear</span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <div id="alert-feed">
+        <p class="text-muted" style="font-size:.9rem">Loading alerts…</p>
+      </div>
+      <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm" style="margin-top:1rem">
+        View all alerts →
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<!-- Camera preview -->
+<div class="card mt-3" role="region" aria-label="Camera feed preview">
+  <div class="card-header">
+    <h2 class="card-title">📷 Camera Preview</h2>
+    <a href="{{ url_for('camera.feed_page') }}" class="btn btn-outline btn-sm">Full view →</a>
+  </div>
+  <div class="card-body">
+    <div class="camera-container" style="max-height:320px">
+      <img src="{{ url_for('camera.stream') }}" class="camera-feed"
+        alt="Live camera feed" id="dashboard-cam"
+        onerror="this.parentElement.innerHTML=offlineHTML()" />
+      <div class="camera-overlay" aria-hidden="true">
+        <div class="camera-corner camera-corner-tl"></div>
+        <div class="camera-corner camera-corner-tr"></div>
+        <div class="camera-corner camera-corner-bl"></div>
+        <div class="camera-corner camera-corner-br"></div>
+        <div class="camera-status-bar">
+          <div class="camera-live-dot">
+            <div class="live-indicator"></div>
+            <span id="camera-status-text">LIVE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function offlineHTML() {
+  return `<div class="camera-offline-overlay" role="img" aria-label="Camera offline">
+    <div class="camera-offline-icon" aria-hidden="true">📷</div>
+    <p>Camera unavailable</p>
+    <small>Check CAMERA_SOURCE in environment settings</small>
+  </div>`;
+}
+
+// Load alert feed
+fetch('/api/alerts/unresolved')
+  .then(r => r.json())
+  .then(alerts => {
+    const container = document.getElementById('alert-feed');
+    if (!alerts.length) {
+      container.innerHTML = `<p style="color:var(--success);font-size:.9rem">✅ No unresolved alerts</p>`;
+      return;
+    }
+    container.innerHTML = alerts.slice(0, 4).map(a => `
+      <div class="alert-item">
+        <div class="alert-item-icon" aria-hidden="true">🚨</div>
+        <div class="alert-item-body">
+          <div class="alert-item-ip">${a.ip}</div>
+          <div class="alert-item-meta">${a.endpoint} • ${new Date(a.timestamp).toLocaleString()}</div>
+        </div>
+      </div>
+    `).join('');
+  }).catch(() => {});
+
+// Load stats
+fetch('/api/access/recent')
+  .then(r => r.json())
+  .then(logs => {
+    document.getElementById('total-logins').textContent = logs.length;
+    document.getElementById('success-logins').textContent = logs.filter(l=>l.status==='success').length;
+    document.getElementById('blocked-attempts').textContent = logs.filter(l=>l.status==='blocked').length;
+  }).catch(() => {});
+</script>
+{% endblock %}
