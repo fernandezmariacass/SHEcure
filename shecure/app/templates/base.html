@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'></text></svg>" />
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -18,7 +18,7 @@
   <nav class="sidebar" aria-label="Main navigation">
     <div class="sidebar-logo">
       <div class="sidebar-logo-text">
-        <div class="sidebar-logo-icon" aria-hidden="true">🔐</div>
+        <div class="sidebar-logo-icon" aria-hidden="true"></div>
         <span><span class="she">SHE</span><span class="cure">cure</span></span>
       </div>
     </div>
@@ -26,16 +26,16 @@
     <div class="sidebar-section">
       <div class="sidebar-section-label">Main</div>
       <a href="{{ url_for('dashboard.home') }}" class="sidebar-nav-item" aria-label="Dashboard home">
-        <span class="sidebar-nav-icon" aria-hidden="true">📊</span> Dashboard
+        <span class="sidebar-nav-icon" aria-hidden="true"></span> Dashboard
       </a>
       <a href="{{ url_for('camera.feed_page') }}" class="sidebar-nav-item" aria-label="Camera monitoring">
-        <span class="sidebar-nav-icon" aria-hidden="true">📷</span> Camera Feed
+        <span class="sidebar-nav-icon" aria-hidden="true"></span> Camera Feed
       </a>
       <a href="{{ url_for('dashboard.activity') }}" class="sidebar-nav-item" aria-label="Activity log">
-        <span class="sidebar-nav-icon" aria-hidden="true">📋</span> Activity Log
+        <span class="sidebar-nav-icon" aria-hidden="true"></span> Activity Log
       </a>
       <a href="{{ url_for('dashboard.alerts') }}" class="sidebar-nav-item" aria-label="Security alerts">
-        <span class="sidebar-nav-icon" aria-hidden="true">🚨</span> Alerts
+        <span class="sidebar-nav-icon" aria-hidden="true"></span> Alerts
         <span class="sidebar-badge" id="alert-count-badge" aria-label="Unresolved alerts"
           style="display:none">0</span>
       </a>
@@ -45,10 +45,10 @@
     <div class="sidebar-section">
       <div class="sidebar-section-label">Admin</div>
       <a href="{{ url_for('admin.panel') }}" class="sidebar-nav-item" aria-label="Admin panel">
-        <span class="sidebar-nav-icon" aria-hidden="true">⚙️</span> Admin Panel
+        <span class="sidebar-nav-icon" aria-hidden="true"></span> Admin Panel
       </a>
       <a href="{{ url_for('admin.logs') }}" class="sidebar-nav-item" aria-label="Access logs">
-        <span class="sidebar-nav-icon" aria-hidden="true">🗂️</span> Access Logs
+        <span class="sidebar-nav-icon" aria-hidden="true"></span> Access Logs
       </a>
     </div>
     {% endif %}
@@ -63,7 +63,7 @@
           <div class="sidebar-role">{{ current_user.role }}</div>
         </div>
         <a href="{{ url_for('auth.logout') }}" aria-label="Log out"
-          style="color:rgba(255,255,255,.5);font-size:1.1rem;text-decoration:none">⏏️</a>
+          style="color:rgba(255,255,255,.5);font-size:1.1rem;text-decoration:none"></a>
       </div>
     </div>
   </nav>
@@ -84,7 +84,7 @@
       <div class="topbar-actions">
         <a href="{{ url_for('dashboard.alerts') }}" aria-label="View security alerts">
           <button class="alert-bell" aria-label="Alerts">
-            🔔
+            
             <span class="alert-bell-dot" id="alert-bell-dot" style="display:none"
               aria-label="You have unresolved alerts"></span>
           </button>
@@ -100,7 +100,7 @@
           {% for cat, msg in messages %}
             <div class="alert alert-{{ cat }}" role="alert" data-auto-dismiss>
               <span aria-hidden="true">
-                {% if cat == 'success' %}✅{% elif cat == 'danger' %}🚨{% elif cat == 'warning' %}⚠️{% else %}ℹ️{% endif %}
+                {% if cat == 'success' %}{% elif cat == 'danger' %}{% elif cat == 'warning' %}{% else %}{% endif %}
               </span>
               {{ msg }}
             </div>
