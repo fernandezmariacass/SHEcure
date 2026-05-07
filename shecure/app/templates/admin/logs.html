@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Access Logs{% endblock %}
-{% block page_title %} Access Logs{% endblock %}
+{% block page_title %}𖤓 Access Logs{% endblock %}
 
 {% block content %}
 <div class="pink-line"></div>
@@ -37,7 +37,7 @@
           <td class="text-muted" style="font-size:.82rem">{{ log.reason or '—' }}</td>
           <td>
             {% if log.is_unauthorized %}
-              <span class="badge badge-danger" aria-label="Unauthorized">🚨 Yes</span>
+              <span class="badge badge-danger" aria-label="Unauthorized">⭕ Yes</span>
             {% else %}
               <span class="badge badge-gray" aria-label="Authorized">—</span>
             {% endif %}
