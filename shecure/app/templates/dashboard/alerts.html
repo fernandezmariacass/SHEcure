@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Security Alerts{% endblock %}
-{% block page_title %}🚨 Security Alerts{% endblock %}
+{% block page_title %} Security Alerts{% endblock %}
 
 {% block content %}
 <div class="pink-line"></div>
@@ -16,7 +16,7 @@
   <div class="card-body">
     {% if not alerts %}
       <p style="text-align:center;color:var(--success);padding:2rem">
-        ✅ No unauthorized access detected. All clear!
+         No unauthorized access detected. All clear!
       </p>
     {% else %}
       {% for alert in alerts %}
@@ -24,7 +24,7 @@
            id="alert-row-{{ alert.id }}"
            role="article"
            aria-label="Alert from {{ alert.ip_address }}">
-        <div class="alert-item-icon" aria-hidden="true">🚨</div>
+        <div class="alert-item-icon" aria-hidden="true"></div>
         <div class="alert-item-body" style="flex:1">
           <div class="alert-item-ip">{{ alert.ip_address }}</div>
           <div class="alert-item-meta">
