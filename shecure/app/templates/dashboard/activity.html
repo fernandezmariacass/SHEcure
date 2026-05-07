@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Activity Log{% endblock %}
-{% block page_title %}📋 Activity Log{% endblock %}
+{% block page_title %} Activity Log{% endblock %}
 
 {% block content %}
 <div class="pink-line"></div>
@@ -44,9 +44,9 @@
           </td>
           <td>
             {% if log.is_suspicious %}
-              <span class="badge badge-danger" aria-label="Suspicious activity">⚠️ Suspicious</span>
+              <span class="badge badge-danger" aria-label="Suspicious activity"> Suspicious</span>
             {% else %}
-              <span class="badge badge-success" aria-label="Normal activity">✅ Normal</span>
+              <span class="badge badge-success" aria-label="Normal activity"> Normal</span>
             {% endif %}
           </td>
         </tr>
