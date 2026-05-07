@@ -8,19 +8,19 @@
 <!-- Stats row -->
 <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:2rem">
   <div class="stat-card">
-    <div class="stat-icon stat-icon-pink" aria-hidden="true">👥</div>
+    <div class="stat-icon stat-icon-pink" aria-hidden="true"></div>
     <div><div class="stat-value">{{ users|length }}</div><div class="stat-label">Total Users</div></div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon stat-icon-amber" aria-hidden="true">⏳</div>
+    <div class="stat-icon stat-icon-amber" aria-hidden="true"></div>
     <div><div class="stat-value" style="color:var(--warning)">{{ pending }}</div><div class="stat-label">Pending</div></div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon stat-icon-blue" aria-hidden="true">🌐</div>
+    <div class="stat-icon stat-icon-blue" aria-hidden="true"></div>
     <div><div class="stat-value">{{ ips|length }}</div><div class="stat-label">Allowed IPs</div></div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon stat-icon-red" aria-hidden="true">🚨</div>
+    <div class="stat-icon stat-icon-red" aria-hidden="true"></div>
     <div><div class="stat-value" style="color:var(--danger)">{{ alerts }}</div><div class="stat-label">Open Alerts</div></div>
   </div>
 </div>
@@ -30,7 +30,7 @@
   <!-- User Management -->
   <div class="card">
     <div class="card-header">
-      <h2 class="card-title">👥 User Management</h2>
+      <h2 class="card-title"> User Management</h2>
     </div>
     <div class="table-wrapper" style="border:none;border-radius:0">
       <table aria-label="User management table">
@@ -77,7 +77,7 @@
                 <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" style="display:inline">
                   <button type="submit" class="btn btn-danger btn-sm"
                     data-confirm="Delete {{ user.username }}? This cannot be undone."
-                    aria-label="Delete {{ user.username }}">🗑️</button>
+                    aria-label="Delete {{ user.username }}"></button>
                 </form>
                 {% endif %}
               </div>
@@ -120,7 +120,7 @@
           <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem">
             <div>
               <span class="ip-chip" aria-label="Allowed IP: {{ ip_entry.ip_address }}">
-                🌐 {{ ip_entry.ip_address }}
+                 {{ ip_entry.ip_address }}
               </span>
               {% if ip_entry.label %}
                 <small class="text-muted" style="margin-left:.5rem">{{ ip_entry.label }}</small>
@@ -138,7 +138,7 @@
         </div>
 
         <div class="alert alert-info" style="margin-top:1rem;font-size:.82rem">
-          ℹ️ Allow-list enforcement is controlled by <code>ENFORCE_IP_ALLOWLIST=true</code> in your .env file.
+           Allow-list enforcement is controlled by <code>ENFORCE_IP_ALLOWLIST=true</code> in your .env file.
         </div>
       </div>
     </div>
@@ -148,10 +148,10 @@
         <h2 class="card-title">🔗 Quick Links</h2>
       </div>
       <div class="card-body" style="display:flex;flex-direction:column;gap:.5rem">
-        <a href="{{ url_for('admin.logs') }}" class="btn btn-outline btn-sm">📋 View Access Logs</a>
-        <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm">🚨 View Alerts</a>
-        <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline btn-sm">📊 Activity Log</a>
-        <a href="{{ url_for('camera.feed_page') }}" class="btn btn-outline btn-sm">📷 Camera Feed</a>
+        <a href="{{ url_for('admin.logs') }}" class="btn btn-outline btn-sm"> View Access Logs</a>
+        <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm"> View Alerts</a>
+        <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline btn-sm"> Activity Log</a>
+        <a href="{{ url_for('camera.feed_page') }}" class="btn btn-outline btn-sm"> Camera Feed</a>
       </div>
     </div>
 
