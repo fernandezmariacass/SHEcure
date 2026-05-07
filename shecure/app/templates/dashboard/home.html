@@ -8,28 +8,28 @@
 <!-- Stats -->
 <div class="stats-grid" role="region" aria-label="Security statistics">
   <div class="stat-card">
-    <div class="stat-icon stat-icon-pink" aria-hidden="true">🛡️</div>
+    <div class="stat-icon stat-icon-pink" aria-hidden="true"></div>
     <div>
       <div class="stat-value" id="total-logins">—</div>
       <div class="stat-label">Total Logins</div>
     </div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon stat-icon-red" aria-hidden="true">🚨</div>
+    <div class="stat-icon stat-icon-red" aria-hidden="true"></div>
     <div>
       <div class="stat-value" style="color:var(--danger)">{{ alert_count }}</div>
       <div class="stat-label">Open Alerts</div>
     </div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon stat-icon-green" aria-hidden="true">✅</div>
+    <div class="stat-icon stat-icon-green" aria-hidden="true"></div>
     <div>
       <div class="stat-value" id="success-logins">—</div>
       <div class="stat-label">Successful Logins</div>
     </div>
   </div>
   <div class="stat-card">
-    <div class="stat-icon stat-icon-amber" aria-hidden="true">⛔</div>
+    <div class="stat-icon stat-icon-amber" aria-hidden="true"></div>
     <div>
       <div class="stat-value" id="blocked-attempts">—</div>
       <div class="stat-label">Blocked Attempts</div>
@@ -82,7 +82,7 @@
   <!-- Alerts panel -->
   <div class="card" role="region" aria-label="Security alerts">
     <div class="card-header">
-      <h2 class="card-title">🚨 Security Alerts</h2>
+      <h2 class="card-title"> Security Alerts</h2>
       {% if alert_count > 0 %}
         <span class="badge badge-danger">{{ alert_count }} unresolved</span>
       {% else %}
@@ -133,7 +133,7 @@
 <script>
 function offlineHTML() {
   return `<div class="camera-offline-overlay" role="img" aria-label="Camera offline">
-    <div class="camera-offline-icon" aria-hidden="true">📷</div>
+    <div class="camera-offline-icon" aria-hidden="true"></div>
     <p>Camera unavailable</p>
     <small>Check CAMERA_SOURCE in environment settings</small>
   </div>`;
@@ -145,12 +145,12 @@ fetch('/api/alerts/unresolved')
   .then(alerts => {
     const container = document.getElementById('alert-feed');
     if (!alerts.length) {
-      container.innerHTML = `<p style="color:var(--success);font-size:.9rem">✅ No unresolved alerts</p>`;
+      container.innerHTML = `<p style="color:var(--success);font-size:.9rem"> No unresolved alerts</p>`;
       return;
     }
     container.innerHTML = alerts.slice(0, 4).map(a => `
       <div class="alert-item">
-        <div class="alert-item-icon" aria-hidden="true">🚨</div>
+        <div class="alert-item-icon" aria-hidden="true"></div>
         <div class="alert-item-body">
           <div class="alert-item-ip">${a.ip}</div>
           <div class="alert-item-meta">${a.endpoint} • ${new Date(a.timestamp).toLocaleString()}</div>
