@@ -61,7 +61,7 @@
         <div class="sidebar-user-info">
           <div class="sidebar-username">{{ current_user.username }}</div>
           <div class="sidebar-role">{{ current_user.role }}</div>
-        </div>
+        </div> 
         <a href="{{ url_for('auth.logout') }}" aria-label="Log out"
           style="color:rgba(255,255,255,.5);font-size:1.1rem;text-decoration:none"></a>
       </div>
@@ -84,7 +84,7 @@
       <div class="topbar-actions">
         <a href="{{ url_for('dashboard.alerts') }}" aria-label="View security alerts">
           <button class="alert-bell" aria-label="Alerts">
-            
+            ❀
             <span class="alert-bell-dot" id="alert-bell-dot" style="display:none"
               aria-label="You have unresolved alerts"></span>
           </button>
