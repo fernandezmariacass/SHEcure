@@ -33,7 +33,7 @@ function showToast(message, type = 'info', duration = 4000) {
     document.body.appendChild(container);
   }
 
-  const icons = { success:, danger:, warning:, info: };
+  const icons = { success: '⚜', danger: '𔓘', warning: '⏾', info: '𓆉'};
 
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
