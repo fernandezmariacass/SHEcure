@@ -1,18 +1,16 @@
 import os
 import time
 import threading
-from flask import (Blueprint, render_template, Response,
-                   request, jsonify, abort)
+from flask import Blueprint, render_template, Response, request, jsonify, abort
 from flask_login import login_required, current_user
 from app.utils.security import approved_required
 
 camera_bp = Blueprint("camera", __name__)
 
-_frame_lock   = threading.Lock()
+_frame_lock = threading.Lock()
 _latest_frame = None
-_frame_time   = 0
-
-_BROADCASTER_SECRET  = "shecuredmaria2026"
+_frame_time = 0
+_BROADCASTER_SECRET = "shecuredmaria2026"
 BROADCASTER_USERNAME = os.environ.get("BROADCASTER_USERNAME", "admin")
 
 
@@ -20,7 +18,7 @@ def _set_frame(jpeg_bytes):
     global _latest_frame, _frame_time
     with _frame_lock:
         _latest_frame = jpeg_bytes
-        _frame_time   = time.time()
+        _frame_time = time.time()
 
 
 def _get_frame():
@@ -44,11 +42,15 @@ def _generate_viewer_stream():
 @login_required
 @approved_required
 def feed_page():
-    is_broadcaster = (current_user.username == BROADCASTER_USERNAME
-                      or current_user.role == "admin")
-    return render_template("dashboard/camera.html",
-                           is_broadcaster=is_broadcaster,
-                           broadcaster_username=BROADCASTER_USERNAME)
+    is_broadcaster = (
+        current_user.username == BROADCASTER_USERNAME
+        or current_user.role == "admin"
+    )
+    return render_template(
+        "dashboard/camera.html",
+        is_broadcaster=is_broadcaster,
+        broadcaster_username=BROADCASTER_USERNAME,
+    )
 
 
 @camera_bp.route("/stream")
@@ -78,8 +80,4 @@ def ingest():
 def status():
     _, ts = _get_frame()
     online = (time.time() - ts) < 5
-    return jsonify({
-        "online": online,
-        "broadcaster": BROADCASTER_USERNAME,
-        "last_frame_age": round(time.time() - ts, 1) if ts else None,
-    })
+    return js
