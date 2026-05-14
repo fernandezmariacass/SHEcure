@@ -1,12 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Camera Feed{% endblock %}
-{% block page_title %}☆ Live Camera Feed{% endblock %}
+{% block page_title %}📷 Live Camera Feed{% endblock %}
 
 {% block content %}
 <div class="pink-line"></div>
-<div class="grid-2" style="align-items:start">
 
-  <!-- Camera -->
+{% if is_broadcaster %}
+<div class="alert alert-info" role="status" style="margin-bottom:1.5rem">
+  🎥 <strong>You are the broadcaster.</strong>
+  Run the pusher script on your local machine to go live.
+  Other admins will see your feed automatically.
+</div>
+{% endif %}
+
+<div class="grid-2" style="align-items:start">
   <div class="card">
     <div class="card-header">
       <h2 class="card-title">Live Stream</h2>
@@ -14,13 +21,10 @@
     </div>
     <div class="card-body" style="padding:0">
       <div class="camera-container" style="border:none;border-radius:0">
-        <img
-          src="{{ url_for('camera.stream') }}"
-          class="camera-feed"
-          alt="Live camera stream from {{ source_label }}"
-          id="camera-img"
-          onerror="handleCamError()"
-        />
+        <img src="{{ url_for('camera.stream') }}"
+             class="camera-feed"
+             alt="Live camera feed pushed by {{ broadcaster_username }}"
+             id="camera-img" />
         <div class="camera-overlay" aria-hidden="true">
           <div class="camera-corner camera-corner-tl"></div>
           <div class="camera-corner camera-corner-tr"></div>
@@ -28,118 +32,77 @@
           <div class="camera-corner camera-corner-br"></div>
           <div class="camera-status-bar">
             <div class="camera-live-dot">
-              <div class="live-indicator" id="live-dot"></div>
+              <div class="live-indicator"></div>
               <span id="camera-status-text">LIVE</span>
             </div>
-            <span style="color:rgba(255,255,255,.7);font-size:.75rem;font-family:var(--font-mono)">
-              {{ source_label }}
+            <span style="color:rgba(255,255,255,.7);font-size:.75rem;
+                         font-family:var(--font-mono)">
+              Broadcaster: {{ broadcaster_username }}
             </span>
           </div>
         </div>
       </div>
     </div>
-    <div class="card-header" style="border-top:1px solid var(--gray-100);border-bottom:none">
-      <small class="text-muted">Source: <code>{{ source_label }}</code></small>
-      <button onclick="reloadStream()" class="btn btn-ghost btn-sm" aria-label="Reload camera stream">
-         Reload
-      </button>
-    </div>
   </div>
 
-  <!-- Info panel -->
-  <div style="display:flex;flex-direction:column;gap:1.25rem">
-
-    <div class="card">
-      <div class="card-header">
-        <h2 class="card-title">Camera Status</h2>
-      </div>
-      <div class="card-body">
-        <table aria-label="Camera information">
-          <tbody>
-            <tr>
-              <td class="text-muted" style="width:40%">Source</td>
-              <td class="text-mono">{{ source_label }}</td>
-            </tr>
-            <tr>
-              <td class="text-muted">Protocol</td>
-              <td>MJPEG Stream</td>
-            </tr>
-            <tr>
-              <td class="text-muted">Status</td>
-              <td><span class="badge badge-success badge-dot" id="cam-status-badge">Online</span></td>
-            </tr>
-            <tr>
-              <td class="text-muted">Encoding</td>
-              <td>JPEG @ 70% quality</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+  <div class="card">
+    <div class="card-header">
+      <h2 class="card-title">
+        {% if is_broadcaster %}🎥 Broadcaster Setup{% else %}📺 Viewer Info{% endif %}
+      </h2>
     </div>
-
-    <div class="card">
-      <div class="card-header">
-        <h2 class="card-title"> Access Notes</h2>
+    <div class="card-body">
+      {% if is_broadcaster %}
+      <p style="font-size:.9rem;color:var(--gray-600);margin-bottom:1rem">
+        Install the pusher script on your local machine to stream your webcam or CCTV.
+      </p>
+      <div style="background:var(--gray-900);border-radius:var(--r-md);
+                  padding:1rem;font-family:var(--font-mono);
+                  font-size:.78rem;color:#a5f3fc;overflow-x:auto">
+        <div style="color:var(--gray-400);margin-bottom:.5rem"># Install once</div>
+        pip install opencv-python-headless requests<br/><br/>
+        <div style="color:var(--gray-400);margin-bottom:.5rem"># Run to go live</div>
+        python pusher.py \<br/>
+        &nbsp;&nbsp;--url https://YOUR-APP.railway.app \<br/>
+        &nbsp;&nbsp;--secret YOUR_BROADCASTER_SECRET \<br/>
+        &nbsp;&nbsp;--source 0
       </div>
-      <div class="card-body">
-        <ul style="list-style:none;display:flex;flex-direction:column;gap:.75rem">
-          <li class="auth-feature" style="color:var(--gray-700)">
-            <span style="font-size:1.1rem" aria-hidden="true"></span>
-            Camera access restricted to approved users only
-          </li>
-          <li class="auth-feature" style="color:var(--gray-700)">
-            <span style="font-size:1.1rem" aria-hidden="true"></span>
-            Stream access is logged with your IP and timestamp
-          </li>
-          <li class="auth-feature" style="color:var(--gray-700)">
-            <span style="font-size:1.1rem" aria-hidden="true"></span>
-            To connect CCTV: set <code>CAMERA_SOURCE</code> env var to RTSP URL
-          </li>
-        </ul>
+      <div class="alert alert-warning" style="margin-top:1rem;font-size:.82rem">
+        ⚠️ Keep your <code>BROADCASTER_SECRET</code> private — it controls who can push frames.
       </div>
+      {% else %}
+      <table aria-label="Stream info">
+        <tbody>
+          <tr><td class="text-muted">Broadcaster</td>
+              <td class="text-mono">{{ broadcaster_username }}</td></tr>
+          <tr><td class="text-muted">Protocol</td><td>MJPEG (push relay)</td></tr>
+          <tr><td class="text-muted">Status</td>
+              <td><span class="badge badge-success badge-dot"
+                        id="cam-status-badge">Checking…</span></td></tr>
+        </tbody>
+      </table>
+      {% endif %}
     </div>
-
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-function handleCamError() {
-  const img = document.getElementById('camera-img');
-  const badge = document.getElementById('cam-status-badge');
-  const statusText = document.getElementById('camera-status-text');
-  const dot = document.getElementById('live-dot');
-  const streamStatus = document.getElementById('stream-status');
-
-  img.parentElement.innerHTML = `
-    <div class="camera-offline-overlay" role="img" aria-label="Camera offline">
-      <div class="camera-offline-icon" aria-hidden="true"></div>
-      <p style="font-size:1.1rem;font-weight:600">Camera Unavailable</p>
-      <small>Set CAMERA_SOURCE in your .env file<br>e.g. rtsp://user:pass@192.168.1.1/stream</small>
-    </div>`;
-
-  if (badge) { badge.className = 'badge badge-danger badge-dot'; badge.textContent = 'Offline'; }
-  if (streamStatus) { streamStatus.className = 'badge badge-danger'; streamStatus.textContent = 'Offline'; }
-}
-
-function reloadStream() {
-  const img = document.getElementById('camera-img');
-  if (img) img.src = "{{ url_for('camera.stream') }}?" + Date.now();
-}
-
-// Check status on load
 fetch('{{ url_for("camera.status") }}')
   .then(r => r.json())
-  .then(data => {
+  .then(d => {
     const badge = document.getElementById('cam-status-badge');
     const streamStatus = document.getElementById('stream-status');
-    if (!data.online) {
-      if (badge) { badge.className = 'badge badge-warning badge-dot'; badge.textContent = 'No camera detected'; }
-      if (streamStatus) { streamStatus.className = 'badge badge-warning'; streamStatus.textContent = 'No camera'; }
+    const statusText = document.getElementById('camera-status-text');
+    if (d.online) {
+      if (streamStatus) { streamStatus.className='badge badge-success'; streamStatus.textContent='Live'; }
+      if (statusText) statusText.textContent = 'LIVE';
     } else {
-      if (streamStatus) { streamStatus.className = 'badge badge-success'; streamStatus.textContent = 'Live'; }
+      if (streamStatus) { streamStatus.className='badge badge-warning'; streamStatus.textContent='Waiting for broadcaster…'; }
+      if (statusText) statusText.textContent = 'WAITING';
+      if (badge) { badge.className='badge badge-warning badge-dot'; badge.textContent='Offline'; }
     }
-  }).catch(() => {});
+  }).catch(()=>{});
 </script>
 {% endblock %}
