@@ -98,7 +98,7 @@ def register_security_middleware(app):
 
     @app.after_request
     def track_activity(response):
-        if request.endpoint and request.endpoint not in {"static"}:
+        if request.endpoint and request.endpoint not in {"static", "camera.ingest", "camera.stream"}:
             try:
                 log_activity(description=f"{request.method} {request.path}")
             except Exception:
