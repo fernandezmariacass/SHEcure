@@ -71,6 +71,7 @@ EXEMPT_ENDPOINTS = {
     "auth.register",
     "auth.logout",
     "camera.ingest",
+    "camera.stream",
 }
 
 SUSPICIOUS_PATTERNS = [
