@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from app import db
 
 
@@ -13,7 +13,7 @@ class AccessLog(db.Model):
     user_agent = db.Column(db.String(512))
     status = db.Column(db.String(20))  # success | failed | blocked
     reason = db.Column(db.String(200))
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    timestamp = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
     is_unauthorized = db.Column(db.Boolean, default=False)
 
     def to_dict(self):
@@ -39,7 +39,7 @@ class ActivityLog(db.Model):
     endpoint = db.Column(db.String(256))
     status_code = db.Column(db.Integer)
     description = db.Column(db.String(500))
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    timestamp = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
     is_suspicious = db.Column(db.Boolean, default=False)
 
     def to_dict(self):
@@ -65,7 +65,7 @@ class UnauthorizedAlert(db.Model):
     user_agent = db.Column(db.String(512))
     endpoint = db.Column(db.String(256))
     method = db.Column(db.String(10))
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    timestamp = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
     resolved = db.Column(db.Boolean, default=False)
     notes = db.Column(db.Text)
 
