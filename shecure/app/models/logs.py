@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from pytz import timezone as tz
 from app import db
 
 
