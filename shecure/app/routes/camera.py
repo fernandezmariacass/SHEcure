@@ -80,4 +80,4 @@ def ingest():
 def status():
     _, ts = _get_frame()
     online = (time.time() - ts) < 5
-    return js
+    return jsonify({"online": online})
