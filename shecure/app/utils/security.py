@@ -1,13 +1,6 @@
-# ============================================================
-# SECURITY-SENSITIVE FILE — DO NOT COMMIT TO PUBLIC REPOS
-# This file contains IP allow-list logic, activity tracking,
-# and unauthorized-access detection.
-# ============================================================
-
 import os
-from datetime import datetime
 from functools import wraps
-from flask import request, redirect, url_for, abort, current_app
+from flask import request, abort
 from flask_login import current_user
 
 
@@ -18,7 +11,7 @@ def _get_real_ip():
     return request.remote_addr or "unknown"
 
 
-def is_ip_allowed(ip: str) -> bool:
+def is_ip_allowed(ip):
     from app.models.user import AllowedIP
     enforce = os.environ.get("ENFORCE_IP_ALLOWLIST", "false").lower() == "true"
     if not enforce:
@@ -81,8 +74,8 @@ EXEMPT_ENDPOINTS = {
 }
 
 SUSPICIOUS_PATTERNS = [
-    "../", "etc/passwd", "<script", "SELECT ", "UNION ", "DROP TABLE",
-    "alert(", "javascript:", "onload=", "onerror=",
+    "../", "etc/passwd", "<script", "SELECT ", "UNION ",
+    "DROP TABLE", "alert(", "javascript:", "onload=", "onerror=",
 ]
 
 
@@ -99,7 +92,7 @@ def register_security_middleware(app):
         raw = request.get_data(as_text=True)
         for pattern in SUSPICIOUS_PATTERNS:
             if pattern.lower() in raw.lower() or pattern.lower() in request.path.lower():
-                log_activity(description=f"Suspicious pattern detected: {pattern}", suspicious=True)
+                log_activity(description=f"Suspicious pattern: {pattern}", suspicious=True)
                 log_unauthorized_alert(ip, request.path, request.method, request.user_agent.string)
                 abort(400)
 
@@ -110,3 +103,32 @@ def register_security_middleware(app):
                 log_activity(description=f"{request.method} {request.path}")
             except Exception:
                 pass
+        return response
+
+    @app.errorhandler(403)
+    def forbidden(e):
+        from flask import render_template
+        return render_template("errors/403.html"), 403
+
+    @app.errorhandler(404)
+    def not_found(e):
+        from flask import render_template
+        return render_template("errors/404.html"), 404
+
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role != "admin":
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
+def approved_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_approved:
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
