@@ -1,63 +1,98 @@
+# ============================================================
+# camera.py — Push-based camera relay
+# One designated admin pushes frames; others watch.
+# ============================================================
+
 import os
-import cv2
-from flask import Blueprint, render_template, Response, jsonify, request
-from flask_login import login_required
+import time
+import threading
+from flask import (Blueprint, render_template, Response,
+                   request, jsonify, abort)
+from flask_login import login_required, current_user
 from app.utils.security import approved_required
 
 camera_bp = Blueprint("camera", __name__)
 
-# Camera source: 0 = webcam, or RTSP URL from env
-CAMERA_SOURCE = os.environ.get("CAMERA_SOURCE", "0")
+# ── Shared frame store (in-memory) ──────────────────────────
+_frame_lock   = threading.Lock()
+_latest_frame = None          # raw JPEG bytes
+_frame_time   = 0             # unix timestamp of last frame
+_BROADCASTER_SECRET = os.environ.get("BROADCASTER_SECRET", "change-me")
+BROADCASTER_USERNAME = os.environ.get("BROADCASTER_USERNAME", "admin")
+
+def _set_frame(jpeg_bytes):
+    global _latest_frame, _frame_time
+    with _frame_lock:
+        _latest_frame = jpeg_bytes
+        _frame_time   = time.time()
+
+def _get_frame():
+    with _frame_lock:
+        return _latest_frame, _frame_time
 
 
-def _open_camera():
-    src = int(CAMERA_SOURCE) if CAMERA_SOURCE.isdigit() else CAMERA_SOURCE
-    cap = cv2.VideoCapture(src)
-    return cap
-
-
-def _generate_frames():
-    cap = _open_camera()
-    if not cap.isOpened():
-        return
-    try:
-        while True:
-            success, frame = cap.read()
-            if not success:
-                break
-            _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+# ── Viewer stream (all approved users) ──────────────────────
+def _generate_viewer_stream():
+    """Yield the latest pushed frame repeatedly as MJPEG."""
+    while True:
+        frame, ts = _get_frame()
+        if frame:
             yield (
                 b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n"
+                + frame + b"\r\n"
             )
-    finally:
-        cap.release()
+        time.sleep(0.05)   # ~20 fps cap
 
 
 @camera_bp.route("/")
 @login_required
 @approved_required
 def feed_page():
-    source_label = CAMERA_SOURCE if not CAMERA_SOURCE.isdigit() else "Local Webcam"
-    return render_template("dashboard/camera.html", source_label=source_label)
+    is_broadcaster = (current_user.username == BROADCASTER_USERNAME
+                      or current_user.role == "admin")
+    return render_template("dashboard/camera.html",
+                           is_broadcaster=is_broadcaster,
+                           broadcaster_username=BROADCASTER_USERNAME)
 
 
 @camera_bp.route("/stream")
 @login_required
 @approved_required
 def stream():
-    """MJPEG stream endpoint."""
+    """MJPEG endpoint — anyone approved can watch."""
     return Response(
-        _generate_frames(),
+        _generate_viewer_stream(),
         mimetype="multipart/x-mixed-replace; boundary=frame",
     )
+
+
+@camera_bp.route("/ingest", methods=["POST"])
+def ingest():
+    """
+    The broadcaster POSTs raw JPEG frames here.
+    Protected by a shared secret header — NOT by login,
+    because the Python pusher script runs headlessly.
+    """
+    secret = request.headers.get("X-Broadcaster-Secret", "")
+    if secret != _BROADCASTER_SECRET:
+        abort(403)
+
+    data = request.get_data()
+    if not data:
+        abort(400)
+
+    _set_frame(data)
+    return jsonify({"ok": True})
 
 
 @camera_bp.route("/status")
 @login_required
 def status():
-    cap = _open_camera()
-    ok = cap.isOpened()
-    if ok:
-        cap.release()
-    return jsonify({"online": ok, "source": CAMERA_SOURCE})
+    _, ts = _get_frame()
+    online = (time.time() - ts) < 5   # stale if no frame for 5 sec
+    return jsonify({
+        "online": online,
+        "broadcaster": BROADCASTER_USERNAME,
+        "last_frame_age": round(time.time() - ts, 1) if ts else None,
+    })
