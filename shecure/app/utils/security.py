@@ -1,5 +1,6 @@
 import os
 import re
+import ipaddress
 from functools import wraps
 from flask import request, abort
 from flask_login import current_user
@@ -64,7 +65,22 @@ def is_ip_allowed(ip):
     enforce = os.environ.get("ENFORCE_IP_ALLOWLIST", "false").lower() == "true"
     if not enforce:
         return True
-    return AllowedIP.query.filter_by(ip_address=ip, is_active=True).first() is not None
+
+    try:
+        client = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+
+    entries = AllowedIP.query.filter_by(is_active=True).all()
+    for entry in entries:
+        try:
+            if "/" not in entry.ip_address and ipaddress.ip_address(entry.ip_address) == client:
+                return True
+            if "/" in entry.ip_address and client in ipaddress.ip_network(entry.ip_address, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 # ── AI threat scoring ─────────────────────────────────────────────────────────
