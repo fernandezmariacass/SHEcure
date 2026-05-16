@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>403 Forbidden | SHEcure</title>
+  <title>Access Denied | SHEcure</title>
   <link rel="stylesheet" href="/static/css/main.css" />
 </head>
 <body style="display:grid;place-items:center;min-height:100vh;background:var(--pink-50)">
@@ -19,7 +19,11 @@
     <div class="alert alert-danger" role="alert">
        Unauthorized access attempt recorded.
     </div>
-    <a href="/login" class="btn btn-primary" style="margin-top:1rem">← Return to Login</a>
+    <!-- Use a plain anchor that goes directly to /login — no JS, no redirect chain -->
+    <a href="/login" class="btn btn-primary" style="margin-top:1rem"
+       onclick="window.location.replace('/login'); return false;">
+      ← Return to Login
+    </a>
   </div>
 </body>
 </html>
