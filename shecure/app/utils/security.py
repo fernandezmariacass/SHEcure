@@ -38,9 +38,9 @@ def _get_action_label(method, path):
         if method == m and re.match(pattern, path):
             return label
     if method == "GET":
-        return f"👁️ Viewed {path}"
+        return f"Viewed {path}"
     if method == "POST":
-        return f"📤 Submitted {path}"
+        return f"Submitted {path}"
     return f"{method} {path}"
 
 def _should_log(path):
