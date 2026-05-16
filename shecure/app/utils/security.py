@@ -4,26 +4,33 @@ from functools import wraps
 from flask import request, abort
 from flask_login import current_user
 
-# ── Action label map ─────────────────────────────────────────────────────────
-# Maps (method, path_pattern) → human-readable action label
+# ── Paths to skip activity logging ───────────────────────────────────────────
+_SKIP_LOGGING_PREFIXES = (
+    "/api/",
+    "/static/",
+    "/camera/stream",
+    "/camera/status",
+    "/debug-ip",
+)
+
+# ── Action label map ──────────────────────────────────────────────────────────
 _ACTION_MAP = [
-    ("POST",  r"^/login$",                        "Login attempt"),
-    ("POST",  r"^/register$",                     "Registration"),
-    ("GET",   r"^/logout$",                       "Logged out"),
-    ("GET",   r"^/dashboard$",                    "Viewed Dashboard"),
-    ("GET",   r"^/dashboard/activity",            "Viewed Activity Log"),
-    ("GET",   r"^/dashboard/alerts",              "Viewed Alerts"),
-    ("GET",   r"^/camera",                        "Viewed Camera Feed"),
-    ("GET",   r"^/admin/$",                       "Opened Admin Panel"),
-    ("GET",   r"^/admin/logs",                    "Viewed Access Logs"),
-    ("POST",  r"^/admin/users/\d+/approve",       "Approved a user"),
-    ("POST",  r"^/admin/users/\d+/revoke",        "Revoked user access"),
-    ("POST",  r"^/admin/users/\d+/delete",        "Deleted a user"),
-    ("POST",  r"^/admin/ip/add",                  "Added IP to allowlist"),
-    ("POST",  r"^/admin/ip/\d+/delete",           "Removed IP from allowlist"),
-    ("POST",  r"^/admin/alerts/\d+/resolve",      "Resolved an alert"),
-    ("GET",   r"^/api/",                          "API request"),
-    ("POST",  r"^/camera/ingest",                 "Camera frame ingested"),
+    ("POST", r"^/login$",                      "Login attempt"),
+    ("POST", r"^/register$",                   "Registration"),
+    ("GET",  r"^/logout$",                     "Logged out"),
+    ("GET",  r"^/dashboard$",                  "Viewed Dashboard"),
+    ("GET",  r"^/dashboard/activity",          "Viewed Activity Log"),
+    ("GET",  r"^/dashboard/alerts",            "Viewed Alerts"),
+    ("GET",  r"^/camera/?$",                   "Viewed Camera Feed"),
+    ("GET",  r"^/admin/?$",                    "Opened Admin Panel"),
+    ("GET",  r"^/admin/logs",                  "Viewed Access Logs"),
+    ("POST", r"^/admin/users/\d+/approve",     "Approved a user"),
+    ("POST", r"^/admin/users/\d+/revoke",      "Revoked user access"),
+    ("POST", r"^/admin/users/\d+/delete",      "Deleted a user"),
+    ("POST", r"^/admin/ip/add",                "Added IP to allowlist"),
+    ("POST", r"^/admin/ip/\d+/delete",         "Removed IP from allowlist"),
+    ("POST", r"^/admin/alerts/\d+/resolve",    "Resolved an alert"),
+    ("POST", r"^/camera/ingest",               "Camera frame received"),
 ]
 
 def _get_action_label(method, path):
@@ -36,8 +43,14 @@ def _get_action_label(method, path):
         return f"📤 Submitted {path}"
     return f"{method} {path}"
 
+def _should_log(path):
+    for prefix in _SKIP_LOGGING_PREFIXES:
+        if path.startswith(prefix):
+            return False
+    return True
 
-# ── IP detection ─────────────────────────────────────────────────────────────
+
+# ── IP detection ──────────────────────────────────────────────────────────────
 def _get_real_ip():
     xff = request.headers.get("X-Forwarded-For")
     if xff:
@@ -45,7 +58,7 @@ def _get_real_ip():
     return request.remote_addr or "unknown"
 
 
-# ── IP allowlist ─────────────────────────────────────────────────────────────
+# ── IP allowlist ──────────────────────────────────────────────────────────────
 def is_ip_allowed(ip):
     from app.models.user import AllowedIP
     enforce = os.environ.get("ENFORCE_IP_ALLOWLIST", "false").lower() == "true"
@@ -56,15 +69,9 @@ def is_ip_allowed(ip):
 
 # ── AI threat scoring ─────────────────────────────────────────────────────────
 def _ai_threat_score(ip, endpoint, method, user_agent, combined_payload):
-    """
-    Simple rule-based AI threat scorer (0–100).
-    Returns (score, reason). No external API needed.
-    High score = more suspicious.
-    """
     score = 0
     reasons = []
 
-    # Known scanner/bot user agents
     bot_patterns = ["sqlmap", "nikto", "nmap", "masscan", "zgrab", "dirbuster",
                     "gobuster", "wfuzz", "hydra", "burpsuite", "python-requests"]
     ua_lower = (user_agent or "").lower()
@@ -74,7 +81,6 @@ def _ai_threat_score(ip, endpoint, method, user_agent, combined_payload):
             reasons.append(f"Known attack tool UA: {bot}")
             break
 
-    # Suspicious payload patterns
     high_risk = ["union select", "' or '1'='1", "exec(", "eval(", "/etc/passwd",
                  "/bin/sh", "cmd.exe", "base64_decode", "<script>", "javascript:"]
     for pattern in high_risk:
@@ -83,12 +89,10 @@ def _ai_threat_score(ip, endpoint, method, user_agent, combined_payload):
             reasons.append(f"High-risk payload: {pattern}")
             break
 
-    # Repeated failed auth endpoint
     if endpoint in ["/login", "/register"] and method == "POST":
         score += 10
         reasons.append("Auth endpoint probing")
 
-    # Scanning common paths
     scan_paths = ["/wp-admin", "/phpmyadmin", "/.env", "/admin.php",
                   "/config", "/.git", "/backup", "/shell"]
     for p in scan_paths:
@@ -97,7 +101,6 @@ def _ai_threat_score(ip, endpoint, method, user_agent, combined_payload):
             reasons.append(f"Known scan path: {p}")
             break
 
-    # Very short or empty user agent
     if not user_agent or len(user_agent.strip()) < 10:
         score += 15
         reasons.append("Suspicious user agent")
@@ -198,20 +201,17 @@ def register_security_middleware(app):
 
         ip = _get_real_ip()
 
-        # Block IPs not in allow-list
         if not is_ip_allowed(ip):
             log_unauthorized_alert(ip, request.path,
                                    request.method, request.user_agent.string)
             log_access("unknown", "blocked", reason="IP not in allow-list")
             abort(403)
 
-        # Block suspiciously large requests
         if request.content_length and request.content_length > 10 * 1024 * 1024:
             log_unauthorized_alert(ip, request.path,
                                    request.method, request.user_agent.string)
             abort(413)
 
-        # Scan query string and body (NOT path — path has legitimate "delete" etc)
         targets = [
             request.query_string.decode("utf-8", errors="ignore"),
             request.get_data(as_text=True),
@@ -231,7 +231,6 @@ def register_security_middleware(app):
                     pass
                 abort(400)
 
-        # Block empty or missing User-Agent
         ua = request.user_agent.string.strip()
         if not ua or len(ua) < 5:
             log_unauthorized_alert(ip, request.path,
@@ -240,7 +239,8 @@ def register_security_middleware(app):
 
     @app.after_request
     def track_activity(response):
-        if request.endpoint and request.endpoint not in {"static"}:
+        # Skip API polling, static files, camera stream — only log real page visits
+        if request.endpoint and _should_log(request.path):
             try:
                 log_activity(
                     description=f"{request.method} {request.path} → {response.status_code}",
