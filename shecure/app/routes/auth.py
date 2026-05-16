@@ -127,12 +127,14 @@ def register():
 
     return render_template("auth/register.html")
 
-
 @auth_bp.route("/logout")
 @login_required
 def logout():
     log_access(current_user.username, "logout", user_id=current_user.id)
     logout_user()
+    flash("You have been logged out.", "info")
+    return redirect(url_for("auth.login"))
+
 
 @auth_bp.route("/debug-ip")
 def debug_ip():
@@ -141,6 +143,4 @@ def debug_ip():
         "remote_addr": request.remote_addr,
         "x_forwarded_for": request.headers.get("X-Forwarded-For"),
         "x_real_ip": request.headers.get("X-Real-IP"),
-    })
-    flash("You have been logged out.", "info")
-    return redirect(url_for("auth.login"))
+    })l_for("auth.login"))
