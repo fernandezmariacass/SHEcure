@@ -73,7 +73,43 @@ def add_ip():
     return redirect(url_for("admin.panel"))
 
 
-@admin_bp.route("/ip/<int:ip_id>/delete", methods=["POST"])
+@admin_bp.route("/ip/register-mine", methods=["POST"])
+@login_required
+@admin_required
+def register_my_ip():
+    from flask_login import current_user
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    if ip:
+        ip = ip.split(",")[0].strip()
+
+    if not ip:
+        flash("Could not detect your IP.", "danger")
+        return redirect(url_for("admin.panel"))
+
+    existing = AllowedIP.query.filter_by(ip_address=ip).first()
+    if existing:
+        existing.is_active = True
+        existing.label = f"Auto: {current_user.username}"
+        db.session.commit()
+        flash(f"Your IP {ip} is already allowed (re-activated).", "info")
+        return redirect(url_for("admin.panel"))
+
+    # Deactivate previous auto-registered IPs for this admin to keep list clean
+    old = AllowedIP.query.filter(
+        AllowedIP.label.like(f"Auto: {current_user.username}%"),
+        AllowedIP.ip_address != ip
+    ).all()
+    for entry in old:
+        db.session.delete(entry)
+
+    entry = AllowedIP(ip_address=ip, label=f"Auto: {current_user.username}", added_by=current_user.id)
+    db.session.add(entry)
+    db.session.commit()
+    flash(f"Your current IP ({ip}) has been added to the allowlist.", "success")
+    return redirect(url_for("admin.panel"))
+
+
+
 @login_required
 @admin_required
 def delete_ip(ip_id):
