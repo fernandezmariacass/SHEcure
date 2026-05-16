@@ -174,10 +174,10 @@ function loadActivityFeed() {
       rows.push({
         ip: log.ip || '—',
         user: log.username || '—',
-        action: log.status === 'success' ? '🔑 Login' :
-                log.status === 'blocked' ? '🚫 Blocked' :
-                log.status === 'logout'  ? '🚪 Logout'  :
-                log.status === 'failed'  ? '⚠️ Failed login' : log.status,
+        action: log.status === 'success' ? 'Login' :
+                log.status === 'blocked' ? 'Blocked' :
+                log.status === 'logout'  ? 'Logout'  :
+                log.status === 'failed'  ? 'Failed login' : log.status,
         badgeClass: log.status === 'success' ? 'badge-success' :
                     log.status === 'blocked' ? 'badge-danger' : 'badge-warning',
         time: log.timestamp || '',
