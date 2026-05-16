@@ -14,7 +14,7 @@
       <thead>
         <tr>
           <th scope="col">ID</th>
-          <th scope="col">Timestamp</th>
+          <th scope="col">Timestamp (PST)</th>
           <th scope="col">Username</th>
           <th scope="col">IP Address</th>
           <th scope="col">Status</th>
@@ -26,7 +26,9 @@
         {% for log in logs %}
         <tr>
           <td class="text-mono text-muted">{{ log.id }}</td>
-          <td class="text-mono" style="font-size:.78rem">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td class="text-mono" style="font-size:.78rem">
+            <span data-utc="{{ log.timestamp.isoformat() }}">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+          </td>
           <td>{{ log.username_attempted or '—' }}</td>
           <td class="text-mono">{{ log.ip_address }}</td>
           <td>
@@ -37,7 +39,7 @@
           <td class="text-muted" style="font-size:.82rem">{{ log.reason or '—' }}</td>
           <td>
             {% if log.is_unauthorized %}
-              <span class="badge badge-danger" aria-label="Unauthorized">⭕ Yes</span>
+              <span class="badge badge-danger" aria-label="Unauthorized">Yes</span>
             {% else %}
               <span class="badge badge-gray" aria-label="Authorized">—</span>
             {% endif %}
