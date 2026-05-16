@@ -143,4 +143,4 @@ def debug_ip():
         "remote_addr": request.remote_addr,
         "x_forwarded_for": request.headers.get("X-Forwarded-For"),
         "x_real_ip": request.headers.get("X-Real-IP"),
-    })l_for("auth.login"))
+    })
