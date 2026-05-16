@@ -133,5 +133,14 @@ def register():
 def logout():
     log_access(current_user.username, "logout", user_id=current_user.id)
     logout_user()
+
+@auth_bp.route("/debug-ip")
+def debug_ip():
+    from flask import jsonify
+    return jsonify({
+        "remote_addr": request.remote_addr,
+        "x_forwarded_for": request.headers.get("X-Forwarded-For"),
+        "x_real_ip": request.headers.get("X-Real-IP"),
+    })
     flash("You have been logged out.", "info")
     return redirect(url_for("auth.login"))
