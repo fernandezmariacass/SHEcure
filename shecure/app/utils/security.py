@@ -112,7 +112,6 @@ def register_security_middleware(app):
 
         # Scan URL, args, and body for attack patterns
         targets = [
-            request.path,
             request.query_string.decode("utf-8", errors="ignore"),
             request.get_data(as_text=True),
         ]
