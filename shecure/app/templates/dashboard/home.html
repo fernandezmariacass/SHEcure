@@ -17,7 +17,7 @@
   <div class="stat-card">
     <div class="stat-icon stat-icon-red" aria-hidden="true">👁</div>
     <div>
-      <div class="stat-value" style="color:var(--danger)">{{ alert_count }}</div>
+      <div class="stat-value" style="color:var(--danger)" id="open-alerts">{{ alert_count }}</div>
       <div class="stat-label">Open Alerts</div>
     </div>
   </div>
@@ -43,34 +43,21 @@
   <!-- Recent Access -->
   <div class="card" role="region" aria-label="Recent access log">
     <div class="card-header">
-      <h2 class="card-title">Recent Access</h2>
+      <h2 class="card-title">Recent Activity</h2>
       <span class="badge badge-pink">Live</span>
     </div>
     <div style="overflow-x:auto">
-      <table aria-label="Recent access log table">
+      <table aria-label="Recent activity table">
         <thead>
           <tr>
             <th scope="col">IP Address</th>
             <th scope="col">User</th>
-            <th scope="col">Status</th>
-            <th scope="col">Time</th>
+            <th scope="col">Action</th>
+            <th scope="col">Time (PST)</th>
           </tr>
         </thead>
         <tbody id="live-activity-feed">
-          {% for log in recent_access %}
-          <tr>
-            <td class="text-mono">{{ log.ip_address }}</td>
-            <td>{{ log.username_attempted or '—' }}</td>
-            <td>
-              <span class="badge {% if log.status == 'success' %}badge-success{% elif log.status == 'blocked' %}badge-danger{% else %}badge-warning{% endif %} badge-dot">
-                {{ log.status }}
-              </span>
-            </td>
-            <td class="text-muted">{{ log.timestamp.strftime('%H:%M:%S') }}</td>
-          </tr>
-          {% else %}
-          <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No logs yet</td></tr>
-          {% endfor %}
+          <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">Loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -82,11 +69,11 @@
   <!-- Alerts panel -->
   <div class="card" role="region" aria-label="Security alerts">
     <div class="card-header">
-      <h2 class="card-title"> Security Alerts</h2>
+      <h2 class="card-title">Security Alerts</h2>
       {% if alert_count > 0 %}
-        <span class="badge badge-danger">{{ alert_count }} unresolved</span>
+        <span class="badge badge-danger" id="alert-badge">{{ alert_count }} unresolved</span>
       {% else %}
-        <span class="badge badge-success">All clear</span>
+        <span class="badge badge-success" id="alert-badge">All clear</span>
       {% endif %}
     </div>
     <div class="card-body">
@@ -139,33 +126,102 @@ function offlineHTML() {
   </div>`;
 }
 
-// Load alert feed
-fetch('/api/alerts/unresolved')
-  .then(r => r.json())
-  .then(alerts => {
-    const container = document.getElementById('alert-feed');
-    if (!alerts.length) {
-      container.innerHTML = `<p style="color:var(--success);font-size:.9rem"> No unresolved alerts</p>`;
+// ── Load all-time stats (not just last 20) ───────────────────────────────────
+function loadStats() {
+  fetch('/api/access/stats')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('total-logins').textContent = data.total ?? '—';
+      document.getElementById('success-logins').textContent = data.success ?? '—';
+      document.getElementById('blocked-attempts').textContent = data.blocked ?? '—';
+    }).catch(() => {});
+}
+loadStats();
+
+// ── Load alert feed ───────────────────────────────────────────────────────────
+function loadAlerts() {
+  fetch('/api/alerts/unresolved')
+    .then(r => r.json())
+    .then(alerts => {
+      const container = document.getElementById('alert-feed');
+      if (!alerts.length) {
+        container.innerHTML = `<p style="color:var(--success);font-size:.9rem">✓ No unresolved alerts</p>`;
+        return;
+      }
+      container.innerHTML = alerts.slice(0, 4).map(a => `
+        <div class="alert-item">
+          <div class="alert-item-icon" aria-hidden="true"></div>
+          <div class="alert-item-body">
+            <div class="alert-item-ip">${a.ip}</div>
+            <div class="alert-item-meta">${a.endpoint} · ${a.timestamp}</div>
+            ${a.threat_score ? `<div class="alert-item-meta" style="color:var(--danger);font-size:.75rem">Risk score: ${a.threat_score}/100 — ${a.threat_reason || ''}</div>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }).catch(() => {});
+}
+loadAlerts();
+
+// ── Live activity feed ────────────────────────────────────────────────────────
+function loadActivityFeed() {
+  Promise.all([
+    fetch('/api/access/recent').then(r => r.json()).catch(() => []),
+    fetch('/api/activity/recent').then(r => r.json()).catch(() => []),
+  ]).then(([accessLogs, activityLogs]) => {
+    const rows = [];
+
+    accessLogs.forEach(log => {
+      rows.push({
+        ip: log.ip || '—',
+        user: log.username || '—',
+        action: log.status === 'success' ? '🔑 Login' :
+                log.status === 'blocked' ? '🚫 Blocked' :
+                log.status === 'logout'  ? '🚪 Logout'  :
+                log.status === 'failed'  ? '⚠️ Failed login' : log.status,
+        badgeClass: log.status === 'success' ? 'badge-success' :
+                    log.status === 'blocked' ? 'badge-danger' : 'badge-warning',
+        time: log.timestamp || '',
+      });
+    });
+
+    activityLogs.forEach(log => {
+      rows.push({
+        ip: log.ip || '—',
+        user: log.username || '—',
+        action: log.action || log.description || log.endpoint || '—',
+        badgeClass: log.suspicious ? 'badge-danger' : 'badge-pink',
+        time: log.timestamp || '',
+      });
+    });
+
+    // Sort newest first
+    rows.sort((a, b) => {
+      const ta = a.time ? new Date(a.time.replace(' PST', '')) : 0;
+      const tb = b.time ? new Date(b.time.replace(' PST', '')) : 0;
+      return tb - ta;
+    });
+
+    const feed = document.getElementById('live-activity-feed');
+    if (!feed) return;
+    if (!rows.length) {
+      feed.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No activity yet</td></tr>`;
       return;
     }
-    container.innerHTML = alerts.slice(0, 4).map(a => `
-      <div class="alert-item">
-        <div class="alert-item-icon" aria-hidden="true"></div>
-        <div class="alert-item-body">
-          <div class="alert-item-ip">${a.ip}</div>
-          <div class="alert-item-meta">${a.endpoint} • ${new Date(a.timestamp).toLocaleString()}</div>
-        </div>
-      </div>
-    `).join('');
-  }).catch(() => {});
 
-// Load stats
-fetch('/api/access/recent')
-  .then(r => r.json())
-  .then(logs => {
-    document.getElementById('total-logins').textContent = logs.length;
-    document.getElementById('success-logins').textContent = logs.filter(l=>l.status==='success').length;
-    document.getElementById('blocked-attempts').textContent = logs.filter(l=>l.status==='blocked').length;
-  }).catch(() => {});
+    feed.innerHTML = rows.slice(0, 10).map(row => `
+      <tr>
+        <td class="text-mono" style="font-size:.78rem">${row.ip}</td>
+        <td style="font-size:.85rem">${row.user}</td>
+        <td><span class="badge ${row.badgeClass}" style="font-size:.72rem;white-space:nowrap">${row.action}</span></td>
+        <td class="text-muted" style="font-size:.75rem;white-space:nowrap">${row.time}</td>
+      </tr>`).join('');
+  });
+}
+
+// Load immediately then refresh every 8 seconds
+loadActivityFeed();
+setInterval(loadActivityFeed, 8000);
+setInterval(loadStats, 30000);
+setInterval(loadAlerts, 15000);
 </script>
 {% endblock %}
