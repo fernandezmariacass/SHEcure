@@ -196,7 +196,11 @@ def register_security_middleware(app):
 
     @app.before_request
     def enforce_security():
-        if request.endpoint in EXEMPT_ENDPOINTS:
+        # Always allow if endpoint is exempt or can't be resolved
+        if request.endpoint is None or request.endpoint in EXEMPT_ENDPOINTS:
+            return
+        # Also exempt by path in case endpoint resolution fails (e.g. after a 403/400)
+        if request.path in ("/login", "/register", "/logout", "/debug-ip"):
             return
 
         ip = _get_real_ip()
@@ -204,7 +208,7 @@ def register_security_middleware(app):
         if not is_ip_allowed(ip):
             log_unauthorized_alert(ip, request.path,
                                    request.method, request.user_agent.string)
-            log_access(ip, "blocked", reason="IP not in allow-list")
+            log_access("unknown", "blocked", reason="IP not in allow-list")
             abort(403)
 
         if request.content_length and request.content_length > 10 * 1024 * 1024:
@@ -223,7 +227,7 @@ def register_security_middleware(app):
                     log_activity(
                         description=f"Attack pattern detected: {pattern}",
                         suspicious=True,
-                        action="🚨 Attack pattern detected",
+                        action="Attack pattern detected",
                     )
                     log_unauthorized_alert(ip, request.path,
                                            request.method, request.user_agent.string)
