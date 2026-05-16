@@ -1,6 +1,6 @@
 import os
 from functools import wraps
-from flask import request, abort
+from flask import request, abort, session
 from flask_login import current_user
 
 
@@ -71,40 +71,84 @@ EXEMPT_ENDPOINTS = {
     "auth.register",
     "auth.logout",
     "camera.ingest",
-    "camera.stream",
 }
 
+# Extended suspicious patterns
 SUSPICIOUS_PATTERNS = [
-    "../", "etc/passwd", "<script", "SELECT ", "UNION ",
-    "DROP TABLE", "alert(", "javascript:", "onload=", "onerror=",
+    "../", "..\\", "etc/passwd", "etc/shadow",
+    "<script", "javascript:", "onload=", "onerror=",
+    "SELECT ", "UNION ", "INSERT ", "DROP ", "DELETE ",
+    "UPDATE ", "ALTER ", "CREATE ", "EXEC(",
+    "alert(", "document.cookie", "window.location",
+    "base64,", "eval(", "setTimeout(", "setInterval(",
+    "/bin/sh", "/bin/bash", "cmd.exe", "powershell",
+    "wget ", "curl ", "nc -e", "ncat ",
+    "0x", "char(", "concat(", "sleep(",
 ]
 
 
 def register_security_middleware(app):
+
     @app.before_request
     def enforce_security():
         if request.endpoint in EXEMPT_ENDPOINTS:
             return
+
         ip = _get_real_ip()
+
+        # Block IPs not in allow-list
         if not is_ip_allowed(ip):
-            log_unauthorized_alert(ip, request.path, request.method, request.user_agent.string)
+            log_unauthorized_alert(ip, request.path,
+                                   request.method, request.user_agent.string)
             log_access("unknown", "blocked", reason="IP not in allow-list")
             abort(403)
-        raw = request.get_data(as_text=True)
+
+        # Block suspiciously large requests
+        if request.content_length and request.content_length > 10 * 1024 * 1024:
+            log_unauthorized_alert(ip, request.path,
+                                   request.method, request.user_agent.string)
+            abort(413)
+
+        # Scan URL, args, and body for attack patterns
+        targets = [
+            request.path,
+            request.query_string.decode("utf-8", errors="ignore"),
+            request.get_data(as_text=True),
+        ]
+        combined = " ".join(targets).lower()
         for pattern in SUSPICIOUS_PATTERNS:
-            if pattern.lower() in raw.lower() or pattern.lower() in request.path.lower():
-                log_activity(description=f"Suspicious pattern: {pattern}", suspicious=True)
-                log_unauthorized_alert(ip, request.path, request.method, request.user_agent.string)
+            if pattern.lower() in combined:
+                try:
+                    log_activity(
+                        description=f"Attack pattern detected: {pattern}",
+                        suspicious=True,
+                    )
+                    log_unauthorized_alert(ip, request.path,
+                                           request.method, request.user_agent.string)
+                except Exception:
+                    pass
                 abort(400)
+
+        # Block empty or missing User-Agent (common bots/scanners)
+        ua = request.user_agent.string.strip()
+        if not ua or len(ua) < 5:
+            log_unauthorized_alert(ip, request.path,
+                                   request.method, request.user_agent.string)
+            abort(400)
 
     @app.after_request
     def track_activity(response):
-        if request.endpoint and request.endpoint not in {"static", "camera.ingest", "camera.stream"}:
+        if request.endpoint and request.endpoint not in {"static"}:
             try:
                 log_activity(description=f"{request.method} {request.path}")
             except Exception:
                 pass
         return response
+
+    @app.errorhandler(400)
+    def bad_request(e):
+        from flask import render_template
+        return render_template("errors/403.html"), 400
 
     @app.errorhandler(403)
     def forbidden(e):
@@ -115,6 +159,16 @@ def register_security_middleware(app):
     def not_found(e):
         from flask import render_template
         return render_template("errors/404.html"), 404
+
+    @app.errorhandler(413)
+    def too_large(e):
+        from flask import jsonify
+        return jsonify({"error": "Request too large"}), 413
+
+    @app.errorhandler(429)
+    def rate_limited(e):
+        from flask import render_template
+        return render_template("errors/403.html"), 429
 
 
 def admin_required(f):
