@@ -15,12 +15,11 @@
       <thead>
         <tr>
           <th scope="col">#</th>
-          <th scope="col">Timestamp</th>
+          <th scope="col">Timestamp (PST)</th>
           <th scope="col">User</th>
           <th scope="col">IP Address</th>
-          <th scope="col">Method</th>
+          <th scope="col">Action</th>
           <th scope="col">Endpoint</th>
-          <th scope="col">Description</th>
           <th scope="col">Flag</th>
         </tr>
       </thead>
@@ -28,30 +27,28 @@
         {% for log in logs %}
         <tr data-suspicious="{{ 'true' if log.is_suspicious else 'false' }}">
           <td class="text-muted text-mono">{{ log.id }}</td>
-          <td class="text-mono" style="font-size:.78rem">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-          <td>{{ log.user_id or '—' }}</td>
+          <td class="text-mono" style="font-size:.78rem">
+            <span data-utc="{{ log.timestamp.isoformat() }}">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+          </td>
+          <td style="font-size:.85rem">{{ log.username or log.user_id or '—' }}</td>
           <td class="text-mono">{{ log.ip_address }}</td>
-          <td>
+          <td style="font-size:.82rem">{{ log.action or log.description or '—' }}</td>
+          <td class="text-mono" style="font-size:.78rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
             <span class="badge {% if log.method == 'POST' %}badge-warning{% else %}badge-info{% endif %}">
               {{ log.method }}
             </span>
-          </td>
-          <td class="text-mono" style="font-size:.78rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
             {{ log.endpoint }}
-          </td>
-          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-            {{ log.description or '—' }}
           </td>
           <td>
             {% if log.is_suspicious %}
-              <span class="badge badge-danger" aria-label="Suspicious activity"> Suspicious</span>
+              <span class="badge badge-danger" aria-label="Suspicious activity">🚨 Suspicious</span>
             {% else %}
-              <span class="badge badge-success" aria-label="Normal activity"> Normal</span>
+              <span class="badge badge-success" aria-label="Normal activity">✓ Normal</span>
             {% endif %}
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="8" style="text-align:center;padding:3rem;color:var(--gray-400)">No activity recorded yet</td></tr>
+        <tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--gray-400)">No activity recorded yet</td></tr>
         {% endfor %}
       </tbody>
     </table>
