@@ -16,8 +16,7 @@ limiter = Limiter(key_func=get_remote_address)
 def create_app():
     app = Flask(__name__)
 
-    # Core config
-    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "change-me-in-production")
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "change-me")
     app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
         "DATABASE_URL", "sqlite:///shecure.db"
     )
@@ -26,9 +25,12 @@ def create_app():
             "SQLALCHEMY_DATABASE_URI"
         ].replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB
+    app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["PERMANENT_SESSION_LIFETIME"] = 3600  # 1 hour timeout
 
-    # Extensions
     db.init_app(app)
     login_manager.init_app(app)
     limiter.init_app(app)
@@ -36,7 +38,6 @@ def create_app():
     login_manager.login_message = "Please log in to access SHEcure."
     login_manager.login_message_category = "warning"
 
-    # Blueprints
     from app.routes.auth import auth_bp
     from app.routes.dashboard import dashboard_bp
     from app.routes.admin import admin_bp
@@ -49,14 +50,30 @@ def create_app():
     app.register_blueprint(camera_bp, url_prefix="/camera")
     app.register_blueprint(api_bp, url_prefix="/api")
 
-    # Create tables
     with app.app_context():
         db.create_all()
         _seed_default_admin()
 
-    # Register security middleware
     from app.utils.security import register_security_middleware
     register_security_middleware(app)
+
+    # --- Security headers on every response ---
+    @app.after_request
+    def add_security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=(self)"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "img-src 'self' data: blob:; "
+            "connect-src 'self';"
+        )
+        return response
 
     return app
 
