@@ -110,6 +110,7 @@ def register_my_ip():
 
 
 
+@admin_bp.route("/ip/<int:ip_id>/delete", methods=["POST"])
 @login_required
 @admin_required
 def delete_ip(ip_id):
