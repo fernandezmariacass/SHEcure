@@ -28,6 +28,22 @@ def recent_access():
     return jsonify([l.to_dict() for l in logs])
 
 
+@api_bp.route("/access/stats")
+@login_required
+def access_stats():
+    """All-time login statistics for the dashboard summary cards."""
+    total   = AccessLog.query.count()
+    success = AccessLog.query.filter_by(status="success").count()
+    blocked = AccessLog.query.filter_by(status="blocked").count()
+    failed  = AccessLog.query.filter_by(status="failed").count()
+    return jsonify({
+        "total": total,
+        "success": success,
+        "blocked": blocked,
+        "failed": failed,
+    })
+
+
 @api_bp.route("/activity/recent")
 @login_required
 def recent_activity():
