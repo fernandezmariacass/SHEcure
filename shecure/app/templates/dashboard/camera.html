@@ -1,87 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Camera Feed{% endblock %}
-{% block page_title %}📷 Live Camera Feed{% endblock %}
+{% block page_title %}Live Camera Feed{% endblock %}
 
 {% block content %}
 <div class="pink-line"></div>
 
-{% if is_broadcaster %}
-<div class="alert alert-info" role="status" style="margin-bottom:1.5rem">
-  🎥 <strong>You are the broadcaster.</strong>
-  Run the pusher script on your local machine to go live.
-  Other admins will see your feed automatically.
-</div>
-{% endif %}
-
-<div class="grid-2" style="align-items:start">
-  <div class="card">
-    <div class="card-header">
-      <h2 class="card-title">Live Stream</h2>
-      <span class="badge badge-pink" id="stream-status">Connecting…</span>
-    </div>
-    <div class="card-body" style="padding:0">
-      <div class="camera-container" style="border:none;border-radius:0">
-        <img src="{{ url_for('camera.stream') }}"
-             class="camera-feed"
-             alt="Live camera feed pushed by {{ broadcaster_username }}"
-             id="camera-img" />
-        <div class="camera-overlay" aria-hidden="true">
-          <div class="camera-corner camera-corner-tl"></div>
-          <div class="camera-corner camera-corner-tr"></div>
-          <div class="camera-corner camera-corner-bl"></div>
-          <div class="camera-corner camera-corner-br"></div>
-          <div class="camera-status-bar">
-            <div class="camera-live-dot">
-              <div class="live-indicator"></div>
-              <span id="camera-status-text">LIVE</span>
-            </div>
-            <span style="color:rgba(255,255,255,.7);font-size:.75rem;
-                         font-family:var(--font-mono)">
-              Broadcaster: {{ broadcaster_username }}
-            </span>
+<div class="card" style="max-width:1100px;margin:0 auto">
+  <div class="card-header">
+    <h2 class="card-title">Live Stream</h2>
+    <span class="badge badge-pink" id="stream-status">Connecting…</span>
+  </div>
+  <div class="card-body" style="padding:0">
+    <div class="camera-container" style="border:none;border-radius:0">
+      <img src="{{ url_for('camera.stream') }}"
+           class="camera-feed"
+           alt="Live camera feed pushed by {{ broadcaster_username }}"
+           id="camera-img"
+           style="width:100%;height:auto;display:block" />
+      <div class="camera-overlay" aria-hidden="true">
+        <div class="camera-corner camera-corner-tl"></div>
+        <div class="camera-corner camera-corner-tr"></div>
+        <div class="camera-corner camera-corner-bl"></div>
+        <div class="camera-corner camera-corner-br"></div>
+        <div class="camera-status-bar">
+          <div class="camera-live-dot">
+            <div class="live-indicator"></div>
+            <span id="camera-status-text">LIVE</span>
           </div>
+          <span style="color:rgba(255,255,255,.7);font-size:.75rem;
+                       font-family:var(--font-mono)">
+            Broadcaster: {{ broadcaster_username }}
+          </span>
         </div>
       </div>
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="card-header">
-      <h2 class="card-title">
-        {% if is_broadcaster %}🎥 Broadcaster Setup{% else %}📺 Viewer Info{% endif %}
-      </h2>
-    </div>
-    <div class="card-body">
-      {% if is_broadcaster %}
-      <p style="font-size:.9rem;color:var(--gray-600);margin-bottom:1rem">
-        Install the pusher script on your local machine to stream your webcam or CCTV.
-      </p>
-      <div style="background:var(--gray-900);border-radius:var(--r-md);
-                  padding:1rem;font-family:var(--font-mono);
-                  font-size:.78rem;color:#a5f3fc;overflow-x:auto">
-        <div style="color:var(--gray-400);margin-bottom:.5rem"># Install once</div>
-        pip install opencv-python-headless requests<br/><br/>
-        <div style="color:var(--gray-400);margin-bottom:.5rem"># Run to go live</div>
-        python pusher.py \<br/>
-        &nbsp;&nbsp;--url https://YOUR-APP.railway.app \<br/>
-        &nbsp;&nbsp;--secret YOUR_BROADCASTER_SECRET \<br/>
-        &nbsp;&nbsp;--source 0
-      </div>
-      <div class="alert alert-warning" style="margin-top:1rem;font-size:.82rem">
-        ⚠️ Keep your <code>BROADCASTER_SECRET</code> private — it controls who can push frames.
-      </div>
-      {% else %}
-      <table aria-label="Stream info">
-        <tbody>
-          <tr><td class="text-muted">Broadcaster</td>
-              <td class="text-mono">{{ broadcaster_username }}</td></tr>
-          <tr><td class="text-muted">Protocol</td><td>MJPEG (push relay)</td></tr>
-          <tr><td class="text-muted">Status</td>
-              <td><span class="badge badge-success badge-dot"
-                        id="cam-status-badge">Checking…</span></td></tr>
-        </tbody>
-      </table>
-      {% endif %}
     </div>
   </div>
 </div>
@@ -92,7 +43,6 @@
 fetch('{{ url_for("camera.status") }}')
   .then(r => r.json())
   .then(d => {
-    const badge = document.getElementById('cam-status-badge');
     const streamStatus = document.getElementById('stream-status');
     const statusText = document.getElementById('camera-status-text');
     if (d.online) {
@@ -101,7 +51,6 @@ fetch('{{ url_for("camera.status") }}')
     } else {
       if (streamStatus) { streamStatus.className='badge badge-warning'; streamStatus.textContent='Waiting for broadcaster…'; }
       if (statusText) statusText.textContent = 'WAITING';
-      if (badge) { badge.className='badge badge-warning badge-dot'; badge.textContent='Offline'; }
     }
   }).catch(()=>{});
 </script>
