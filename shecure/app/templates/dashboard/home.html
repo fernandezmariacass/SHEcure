@@ -203,18 +203,21 @@ function loadActivityFeed() {
 
     const feed = document.getElementById('live-activity-feed');
     if (!feed) return;
-    if (!rows.length) {
-      feed.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No activity yet</td></tr>`;
-      return;
-    }
 
-    feed.innerHTML = rows.slice(0, 10).map(row => `
-      <tr>
-        <td class="text-mono" style="font-size:.78rem">${row.ip}</td>
-        <td style="font-size:.85rem">${row.user}</td>
-        <td><span class="badge ${row.badgeClass}" style="font-size:.72rem;white-space:nowrap">${row.action}</span></td>
-        <td class="text-muted" style="font-size:.75rem;white-space:nowrap">${row.time}</td>
-      </tr>`).join('');
+    const newHTML = !rows.length
+      ? `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No activity yet</td></tr>`
+      : rows.slice(0, 10).map(row => `
+          <tr>
+            <td class="text-mono" style="font-size:.78rem">${row.ip}</td>
+            <td style="font-size:.85rem">${row.user}</td>
+            <td><span class="badge ${row.badgeClass}" style="font-size:.72rem;white-space:nowrap">${row.action}</span></td>
+            <td class="text-muted" style="font-size:.75rem;white-space:nowrap">${row.time.replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
+          </tr>`).join('');
+
+    // Only update DOM if content actually changed — prevents flash on re-render
+    if (feed.innerHTML !== newHTML) {
+      feed.innerHTML = newHTML;
+    }
   });
 }
 
