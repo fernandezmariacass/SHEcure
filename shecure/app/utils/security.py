@@ -71,6 +71,7 @@ EXEMPT_ENDPOINTS = {
     "auth.register",
     "auth.logout",
     "camera.ingest",
+    "auth.debug_ip",   # ← add this temporarily
 }
 
 # Extended suspicious patterns
