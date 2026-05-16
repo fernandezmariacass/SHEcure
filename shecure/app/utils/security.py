@@ -204,7 +204,7 @@ def register_security_middleware(app):
         if not is_ip_allowed(ip):
             log_unauthorized_alert(ip, request.path,
                                    request.method, request.user_agent.string)
-            log_access("unknown", "blocked", reason="IP not in allow-list")
+            log_access(ip, "blocked", reason="IP not in allow-list")
             abort(403)
 
         if request.content_length and request.content_length > 10 * 1024 * 1024:
