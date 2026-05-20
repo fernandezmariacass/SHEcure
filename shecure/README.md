@@ -1,4 +1,4 @@
-# 🔐 SHEcure
+# SHEcure
 
 > **GEDSI-aligned security monitoring platform** — Pink-powered, inclusive, production-ready.
 
@@ -6,7 +6,7 @@ SHEcure is a full-stack Python (Flask) web application featuring real-time CCTV/
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 shecure/
@@ -42,7 +42,7 @@ shecure/
 
 ---
 
-## 🔒 Security-Sensitive Files
+## Security-Sensitive Files
 
 | File | What's inside | Action |
 |------|--------------|--------|
@@ -52,7 +52,7 @@ shecure/
 
 ---
 
-## 🚀 Local Setup
+## Local Setup
 
 ```bash
 # 1. Clone / unzip the project
@@ -77,7 +77,7 @@ python run.py
 
 ---
 
-## 📤 Upload to GitHub
+## Upload to GitHub
 
 **Step 1 — Create a new GitHub repository**
 1. Go to https://github.com/new
@@ -99,7 +99,7 @@ git push -u origin main
 
 ---
 
-## 🚄 Deploy to Railway
+## Deploy to Railway
 
 **Step 1 — Create Railway project**
 1. Go to https://railway.app and log in
@@ -132,7 +132,7 @@ In Railway project → **Variables** tab, add:
 
 ---
 
-## 📷 Camera / CCTV Setup
+## Camera / CCTV Setup
 
 - **Local webcam:** Set `CAMERA_SOURCE=0` in `.env`
 - **IP camera / CCTV:** Set `CAMERA_SOURCE=rtsp://username:password@192.168.1.100:554/stream`
@@ -143,7 +143,7 @@ In Railway project → **Variables** tab, add:
 
 ---
 
-## ♿ Accessibility (GEDSI Compliance)
+## Accessibility (GEDSI Compliance)
 
 - All interactive elements have `aria-label` attributes
 - Screen-reader announcements via `role="alert"` and `aria-live`
@@ -156,7 +156,7 @@ In Railway project → **Variables** tab, add:
 
 ---
 
-## 🛡️ Security Features
+## Security Features
 
 - **IP Allow-list** — Blocks all IPs not explicitly approved by admin
 - **Rate limiting** — 10 login attempts/minute, 5 registrations/hour
@@ -169,6 +169,6 @@ In Railway project → **Variables** tab, add:
 
 ---
 
-## 📄 License
+## License
 
 MIT — for internal organizational use. Security logic in `app/utils/security.py` should remain private.
