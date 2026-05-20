@@ -55,6 +55,34 @@ def _should_log(path):
 def _get_real_ip():
     return request.remote_addr or "unknown"
 
+_COMMON_PASSWORDS = {
+    "password", "password1", "123456789", "qwerty123", "iloveyou",
+    "admin123", "welcome1", "shecure2025", "shecure@2025", "shecure@2025!",
+}
+
+def validate_password_strength(password: str, username: str = "", email: str = "") -> list[str]:
+    errors = []
+    if len(password) < 12:
+        errors.append("Password must be at least 12 characters long.")
+    if not re.search(r"[A-Z]", password):
+        errors.append("Must contain at least one uppercase letter.")
+    if not re.search(r"[a-z]", password):
+        errors.append("Must contain at least one lowercase letter.")
+    if not re.search(r"[0-9]", password):
+        errors.append("Must contain at least one digit.")
+    if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>/?`~]", password):
+        errors.append("Must contain at least one special character.")
+    if re.search(r"(.)\1{3,}", password):
+        errors.append("Must not contain 4+ repeated characters in a row.")
+    if password.lower() in _COMMON_PASSWORDS:
+        errors.append("Password is too common.")
+    if username and username.lower() in password.lower():
+        errors.append("Password must not contain your username.")
+    if email:
+        local = email.split("@")[0].lower()
+        if local and local in password.lower():
+            errors.append("Password must not contain part of your email.")
+    return errors
 
 # ── IP allowlist ──────────────────────────────────────────────────────────────
 def is_ip_allowed(ip):
@@ -63,6 +91,8 @@ def is_ip_allowed(ip):
     if not enforce:
         return True
 
+    if not ip or ip == "unknown":
+        return False
     try:
         client = ipaddress.ip_address(ip)
     except ValueError:
