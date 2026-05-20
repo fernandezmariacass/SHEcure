@@ -100,18 +100,6 @@
       </div>
       <div class="card-body">
 
-        <!-- One-click: allowlist your current IP -->
-        <form method="POST" action="{{ url_for('admin.register_my_ip') }}" style="margin-bottom:.85rem">
-          <button type="submit" class="btn btn-primary btn-sm" style="width:100%">
-            ✦ Register My Current IP
-          </button>
-        </form>
-        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.85rem">
-          <div style="flex:1;height:1px;background:var(--gray-100)"></div>
-          <small class="text-muted">or add manually</small>
-          <div style="flex:1;height:1px;background:var(--gray-100)"></div>
-        </div>
-
         <form method="POST" action="{{ url_for('admin.add_ip') }}" aria-label="Add IP to allow-list">
           <div style="display:flex;gap:.75rem;flex-wrap:wrap">
             <input class="form-control" type="text" name="ip_address"
