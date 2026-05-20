@@ -4,12 +4,12 @@ from flask_login import login_user, logout_user, login_required, current_user
 from app import db, limiter
 from app.models.user import User
 from app.models.logs import AccessLog
-from app.utils.security import log_access
+from app.utils.security import log_access, validate_password_strength
 
 auth_bp = Blueprint("auth", __name__)
 
-MAX_FAILED_ATTEMPTS = 5
-LOCKOUT_MINUTES = 15
+MAX_FAILED_ATTEMPTS = 3
+LOCKOUT_MINUTES = 30
 
 
 def _is_locked_out(ip):
@@ -39,7 +39,7 @@ def login():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         remember = bool(request.form.get("remember"))
-        ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+        ip = request.remote_addr
 
         # --- Brute force lockout ---
         if _is_locked_out(ip):
@@ -97,17 +97,10 @@ def register():
             flash("Passwords do not match.", "danger")
             return render_template("auth/register.html")
 
-        if len(password) < 8:
-            flash("Password must be at least 8 characters.", "danger")
-            return render_template("auth/register.html")
-
-        # Password strength check
-        import re
-        if not re.search(r'[A-Z]', password):
-            flash("Password must contain at least one uppercase letter.", "danger")
-            return render_template("auth/register.html")
-        if not re.search(r'[0-9]', password):
-            flash("Password must contain at least one number.", "danger")
+        pw_errors = validate_password_strength(password, username=username, email=email)
+        if pw_errors:
+            for err in pw_errors:
+                flash(err, "danger")
             return render_template("auth/register.html")
 
         if User.query.filter_by(username=username).first():
