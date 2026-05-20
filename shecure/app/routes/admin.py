@@ -72,20 +72,6 @@ def add_ip():
     flash(f"IP {ip} added to allow-list.", "success")
     return redirect(url_for("admin.panel"))
 
-
-@admin_bp.route("/ip/register-mine", methods=["POST"])
-@login_required
-@admin_required
-def register_my_ip():
-    from flask_login import current_user
-    ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-    if ip:
-        ip = ip.split(",")[0].strip()
-
-    if not ip:
-        flash("Could not detect your IP.", "danger")
-        return redirect(url_for("admin.panel"))
-
     existing = AllowedIP.query.filter_by(ip_address=ip).first()
     if existing:
         existing.is_active = True
