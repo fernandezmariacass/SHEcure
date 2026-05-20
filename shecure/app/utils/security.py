@@ -53,9 +53,6 @@ def _should_log(path):
 
 # ── IP detection ──────────────────────────────────────────────────────────────
 def _get_real_ip():
-    xff = request.headers.get("X-Forwarded-For")
-    if xff:
-        return xff.split(",")[0].strip()
     return request.remote_addr or "unknown"
 
 
