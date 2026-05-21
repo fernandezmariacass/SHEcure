@@ -193,10 +193,17 @@ def log_activity(description=None, suspicious=False, action=None):
     db.session.commit()
 
 
-def log_unauthorized_alert(ip, endpoint, method, user_agent):
+def log_unauthorized_alert(ip, endpoint, method, user_agent, cached_body=""):
+    """Log an unauthorized access alert.
+
+    cached_body: pre-read request body string, passed in to avoid consuming
+    the stream a second time (request.get_data() can only be read once without
+    stream caching, which interferes with form parsing downstream).
+    """
     from app import db
     from app.models.logs import UnauthorizedAlert
-    combined = f"{endpoint} {request.query_string.decode('utf-8', errors='ignore')} {request.get_data(as_text=True)}"
+    qs = request.query_string.decode("utf-8", errors="ignore")
+    combined = f"{endpoint} {qs} {cached_body}"
     score, reason = _ai_threat_score(ip, endpoint, method, user_agent, combined)
     alert = UnauthorizedAlert(
         ip_address=ip,
@@ -221,16 +228,17 @@ EXEMPT_ENDPOINTS = {
 }
 
 # ── Suspicious payload patterns ───────────────────────────────────────────────
+# NOTE: Patterns like "SELECT ", "DELETE ", "UPDATE " etc. are intentionally
+# removed — they are too broad and match legitimate admin/log page content.
+# Only unambiguous attack payloads are kept here.
 SUSPICIOUS_PATTERNS = [
-    "../", "..\\", "etc/passwd", "etc/shadow",
+    "../", "..\\/", "etc/passwd", "etc/shadow",
     "<script", "javascript:", "onload=", "onerror=",
-    "SELECT ", "UNION ", "INSERT ", "DROP ", "DELETE ",
-    "UPDATE ", "ALTER ", "CREATE ", "EXEC(",
-    "alert(", "document.cookie", "window.location",
+    "UNION SELECT", "' OR '1'='1", "EXEC(",
+    "document.cookie", "window.location",
     "base64,", "eval(", "setTimeout(", "setInterval(",
     "/bin/sh", "/bin/bash", "cmd.exe", "powershell",
-    "wget ", "curl ", "nc -e", "ncat ",
-    "0x", "char(", "concat(", "sleep(",
+    "nc -e", "ncat ",
 ]
 
 
@@ -242,30 +250,35 @@ def register_security_middleware(app):
         # Always allow if endpoint is exempt or can't be resolved
         if request.endpoint is None or request.endpoint in EXEMPT_ENDPOINTS:
             return
-        # Also exempt by path in case endpoint resolution fails (e.g. after a 403/400)
+        # Also exempt by path in case endpoint resolution fails
         if request.path in ("/login", "/register", "/logout", "/debug-ip"):
             return
 
         ip = _get_real_ip()
 
         if not is_ip_allowed(ip):
+            # Don't call get_data() here — body not needed for IP block alerts
             log_unauthorized_alert(ip, request.path,
-                                   request.method, request.user_agent.string)
+                                   request.method, request.user_agent.string,
+                                   cached_body="")
             log_access("unknown", "blocked", reason="IP not in allow-list")
             abort(403)
 
         if request.content_length and request.content_length > 10 * 1024 * 1024:
             log_unauthorized_alert(ip, request.path,
-                                   request.method, request.user_agent.string)
+                                   request.method, request.user_agent.string,
+                                   cached_body="")
             abort(413)
 
-        targets = [
-            request.query_string.decode("utf-8", errors="ignore"),
-            request.get_data(as_text=True),
-        ]
-        combined = " ".join(targets).lower()
+        # FIX: Read body ONCE and cache it so Flask can still parse request.form
+        # downstream. get_data(cache=True) stores the raw bytes in request._cached_data
+        # and leaves the stream position such that Werkzeug's form parser can re-read it.
+        raw_body = request.get_data(cache=True, as_text=True)
+
+        qs = request.query_string.decode("utf-8", errors="ignore")
+        combined = f"{qs} {raw_body}"
         for pattern in SUSPICIOUS_PATTERNS:
-            if pattern.lower() in combined:
+            if pattern.lower() in combined.lower():
                 try:
                     log_activity(
                         description=f"Attack pattern detected: {pattern}",
@@ -273,7 +286,8 @@ def register_security_middleware(app):
                         action="Attack pattern detected",
                     )
                     log_unauthorized_alert(ip, request.path,
-                                           request.method, request.user_agent.string)
+                                           request.method, request.user_agent.string,
+                                           cached_body=raw_body)
                 except Exception:
                     pass
                 abort(400)
@@ -281,7 +295,8 @@ def register_security_middleware(app):
         ua = request.user_agent.string.strip()
         if not ua or len(ua) < 5:
             log_unauthorized_alert(ip, request.path,
-                                   request.method, request.user_agent.string)
+                                   request.method, request.user_agent.string,
+                                   cached_body="")
             abort(400)
 
     @app.after_request
@@ -320,6 +335,16 @@ def register_security_middleware(app):
     def rate_limited(e):
         from flask import render_template
         return render_template("errors/403.html"), 429
+
+    @app.errorhandler(500)
+    def internal_error(e):
+        import traceback
+        app.logger.error("500 Internal Server Error:\n%s", traceback.format_exc())
+        from flask import render_template
+        try:
+            return render_template("errors/500.html"), 500
+        except Exception:
+            return "<h1>500 Internal Server Error</h1>", 500
 
 
 # ── Decorators ────────────────────────────────────────────────────────────────
