@@ -23,6 +23,7 @@ def alert_count():
 
 @api_bp.route("/access/recent")
 @login_required
+@admin_required
 def recent_access():
     logs = AccessLog.query.order_by(AccessLog.timestamp.desc()).limit(20).all()
     return jsonify([l.to_dict() for l in logs])
@@ -30,6 +31,7 @@ def recent_access():
 
 @api_bp.route("/access/stats")
 @login_required
+@admin_required
 def access_stats():
     """All-time login statistics for the dashboard summary cards."""
     total   = AccessLog.query.count()
@@ -46,6 +48,7 @@ def access_stats():
 
 @api_bp.route("/activity/recent")
 @login_required
+@admin_required
 def recent_activity():
     logs = ActivityLog.query.order_by(ActivityLog.timestamp.desc()).limit(50).all()
     return jsonify([l.to_dict() for l in logs])
