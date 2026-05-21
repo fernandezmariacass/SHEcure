@@ -329,56 +329,6 @@ def disable_2fa():
     return redirect(url_for("dashboard.home"))
 
 
-@auth_bp.route("/test-email")
-@login_required
-@admin_required
-def test_email():
-    from app.utils.email_utils import _send_email
-    _send_email(
-        current_user.email,
-        "SHEcure Test Email",
-        "<h2>It works!</h2><p>SMTP is configured correctly.</p>"
-    )
-    flash("Test email sent — check your inbox and Railway logs.", "info")
-    return redirect(url_for("dashboard.home"))
-
-
-@auth_bp.route("/debug-mail")
-@login_required
-@admin_required
-def debug_mail():
-    import smtplib
-    server = os.environ.get("MAIL_SERVER", "")
-    port = int(os.environ.get("MAIL_PORT", "587"))
-    username = os.environ.get("MAIL_USERNAME", "")
-    password = os.environ.get("MAIL_PASSWORD", "")
-    from_addr = os.environ.get("MAIL_FROM", "")
-    to_addr = current_user.email
-
-    result = {
-        "MAIL_SERVER": server or "❌ EMPTY",
-        "MAIL_PORT": port,
-        "MAIL_USERNAME": username or "❌ EMPTY",
-        "MAIL_PASSWORD": "✅ SET" if password else "❌ EMPTY",
-        "MAIL_FROM": from_addr or "❌ EMPTY",
-        "sending_to": to_addr or "❌ EMPTY",
-        "smtp_test": None,
-        "error": None,
-    }
-
-    try:
-        with smtplib.SMTP(server, port, timeout=10) as conn:
-            conn.ehlo()
-            conn.starttls()
-            conn.login(username, password)
-            result["smtp_test"] = "✅ SMTP login successful!"
-    except Exception as e:
-        result["smtp_test"] = "❌ FAILED"
-        result["error"] = str(e)
-
-    return jsonify(result)
-
-
 @auth_bp.route("/debug-ip")
 @login_required
 @admin_required
