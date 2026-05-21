@@ -10,7 +10,6 @@ camera_bp = Blueprint("camera", __name__)
 _frame_lock = threading.Lock()
 _latest_frame = None
 _frame_time = 0
-_BROADCASTER_SECRET = "shecuredmaria2026"
 BROADCASTER_USERNAME = os.environ.get("BROADCASTER_USERNAME", "admin")
 
 
