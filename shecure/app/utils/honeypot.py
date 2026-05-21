@@ -17,12 +17,18 @@ import os
 import hmac
 import hashlib
 
-# The honeypot hash is derived once at import time from the env var.
-# If the env var is not set, the feature is silently disabled (returns False always).
-_raw = os.environ.get("HONEYPOT_PASSWORD", "")
-_HONEYPOT_HASH = (
-    hashlib.sha256(_raw.encode()).digest() if _raw else None
-)
+
+def _get_honeypot_hash():
+    """Read and hash the honeypot password from the env var at call time.
+
+    Reading at call time (not import time) means Railway env var changes
+    take effect immediately on next request without needing a redeploy.
+    Returns None if the env var is not set, which disables the feature.
+    """
+    raw = os.environ.get("HONEYPOT_PASSWORD", "").strip()
+    if not raw:
+        return None
+    return hashlib.sha256(raw.encode()).digest()
 
 
 def is_honeypot_password(password: str) -> bool:
@@ -30,10 +36,11 @@ def is_honeypot_password(password: str) -> bool:
 
     Uses hmac.compare_digest to prevent timing-based side-channel leaks.
     """
-    if _HONEYPOT_HASH is None:
+    honeypot_hash = _get_honeypot_hash()
+    if honeypot_hash is None:
         return False
     submitted = hashlib.sha256(password.encode()).digest()
-    return hmac.compare_digest(submitted, _HONEYPOT_HASH)
+    return hmac.compare_digest(submitted, honeypot_hash)
 
 
 def fire_honeypot_alert(username_attempted: str, ip: str, user_agent: str) -> None:
