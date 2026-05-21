@@ -68,6 +68,13 @@ def create_app():
     from app.utils.security import register_security_middleware
     register_security_middleware(app)
 
+    # Inject reCAPTCHA site key into all templates via context processor
+    # so the key is never hardcoded in HTML — it comes from Railway env vars.
+    @app.context_processor
+    def inject_recaptcha_site_key():
+        import os
+        return {"recaptcha_site_key": os.environ.get("RECAPTCHA_SITE_KEY", "")}
+
     # --- Security headers on every response ---
     @app.after_request
     def add_security_headers(response):
