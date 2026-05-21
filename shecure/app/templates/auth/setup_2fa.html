@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Set Up Two-Factor Authentication | SHEcure</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+</head>
+<body>
+<div class="auth-wrapper">
+  <aside class="auth-brand" aria-label="SHEcure brand information">
+    <div class="auth-brand-logo" aria-label="SHEcure logo">
+      .☘︎ ݁˖ <span class="she">SHE</span>cure
+    </div>
+    <p class="auth-brand-tagline">Two-factor authentication</p>
+    <div class="auth-brand-badge" style="margin-top:2.5rem">
+      <div class="auth-feature">
+        <div class="auth-feature-icon" aria-hidden="true">☕︎</div>
+        <span>Protects your account even if your password is stolen</span>
+      </div>
+      <div class="auth-feature">
+        <div class="auth-feature-icon" aria-hidden="true">☀︎</div>
+        <span>Works with Google Authenticator, Authy, and any TOTP app</span>
+      </div>
+      <div class="auth-feature">
+        <div class="auth-feature-icon" aria-hidden="true">☮︎</div>
+        <span>A new 6-digit code is generated every 30 seconds</span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="auth-form-panel">
+    <div class="auth-card">
+      <h1 class="auth-title">Set up 2FA</h1>
+      <p class="auth-subtitle">
+        Scan the QR code below with your authenticator app, then enter
+        the 6-digit code to confirm enrollment.
+      </p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for cat, msg in messages %}
+            <div class="alert alert-{{ cat }}" role="alert">{{ msg }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <div style="text-align:center;margin:1.5rem 0">
+        <img
+          src="{{ qr_data_uri }}"
+          alt="QR code for two-factor authentication setup"
+          style="width:200px;height:200px;border:4px solid var(--gray-100);border-radius:12px"
+        />
+        <p style="font-size:.8rem;color:var(--gray-400);margin-top:.75rem">
+          Can't scan? Add the account manually in your authenticator app<br>
+          using your username and the secret shown as the account name.
+        </p>
+      </div>
+
+      <form method="POST" action="{{ url_for('auth.setup_2fa') }}" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label class="form-label" for="totp_code">Authenticator code</label>
+          <input
+            class="form-control"
+            type="text"
+            id="totp_code"
+            name="totp_code"
+            autocomplete="one-time-code"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            required
+            aria-required="true"
+            placeholder="000000"
+            style="letter-spacing:.25rem;font-size:1.2rem;text-align:center"
+          />
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top:.5rem">
+          Confirm &amp; Enable 2FA
+        </button>
+      </form>
+
+      <a href="{{ url_for('dashboard.home') }}" class="btn btn-outline btn-block" style="margin-top:.75rem">
+        Cancel — set up later
+      </a>
+    </div>
+  </main>
+</div>
+</body>
+</html>
