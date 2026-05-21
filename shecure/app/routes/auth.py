@@ -6,6 +6,7 @@ from app.models.user import User
 from app.models.logs import AccessLog
 from app.utils.security import log_access, validate_password_strength
 from app.utils.honeypot import is_honeypot_password, fire_honeypot_alert
+from app.models.logs import now_pst
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -14,7 +15,7 @@ LOCKOUT_MINUTES = 30
 
 
 def _is_locked_out(ip):
-    cutoff = datetime.utcnow() - timedelta(minutes=LOCKOUT_MINUTES)
+    cutoff = now_pst() - timedelta(minutes=LOCKOUT_MINUTES)
     failures = AccessLog.query.filter(
         AccessLog.ip_address == ip,
         AccessLog.status == "failed",
@@ -62,13 +63,13 @@ def login():
 
         if not user or not user.check_password(password):
             log_access(username, "failed", reason="Invalid credentials")
-            remaining = MAX_FAILED_ATTEMPTS - (
+            remaining = max(0, MAX_FAILED_ATTEMPTS - (
                 AccessLog.query.filter(
                     AccessLog.ip_address == ip,
                     AccessLog.status == "failed",
-                    AccessLog.timestamp > datetime.utcnow() - timedelta(minutes=LOCKOUT_MINUTES),
+                    AccessLog.timestamp > now_pst() - timedelta(minutes=LOCKOUT_MINUTES),
                 ).count()
-            )
+            ))
             flash(f"Invalid username or password. {remaining} attempts remaining.", "danger")
             return render_template("auth/login.html")
 
