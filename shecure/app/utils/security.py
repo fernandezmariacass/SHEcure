@@ -223,9 +223,31 @@ EXEMPT_ENDPOINTS = {
     "auth.login",
     "auth.register",
     "auth.logout",
-    "camera.ingest",
     "auth.debug_ip",
+    # API polling endpoints — authenticated via session, must not trigger alerts
+    "api.alert_count",
+    "api.unresolved_alerts",
+    "api.recent_access",
+    "api.access_stats",
+    "api.recent_activity",
+    "api.suspicious_activity",
+    # Camera endpoints
+    "camera.ingest",
+    "camera.stream",
+    "camera.status",
 }
+
+# Path-prefix fallback for /api/ and /camera/ in case endpoint resolution fails
+_EXEMPT_PATH_PREFIXES = (
+    "/api/",
+    "/camera/stream",
+    "/camera/status",
+    "/static/",
+    "/login",
+    "/register",
+    "/logout",
+    "/debug-ip",
+)
 
 # ── Suspicious payload patterns ───────────────────────────────────────────────
 # NOTE: Patterns like "SELECT ", "DELETE ", "UPDATE " etc. are intentionally
@@ -250,8 +272,8 @@ def register_security_middleware(app):
         # Always allow if endpoint is exempt or can't be resolved
         if request.endpoint is None or request.endpoint in EXEMPT_ENDPOINTS:
             return
-        # Also exempt by path in case endpoint resolution fails
-        if request.path in ("/login", "/register", "/logout", "/debug-ip"):
+        # Also exempt by path prefix in case endpoint resolution fails
+        if any(request.path.startswith(p) for p in _EXEMPT_PATH_PREFIXES):
             return
 
         ip = _get_real_ip()
