@@ -31,18 +31,15 @@ def create_app():
         ].replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
-    # On Railway, HTTPS is terminated at the proxy — Flask sees HTTP internally.
-    # Use the HTTPS env var Railway sets, or detect via the forwarded proto header.
     is_https = os.environ.get("RAILWAY_ENVIRONMENT") is not None or \
                os.environ.get("FLASK_ENV") == "production"
     app.config["SESSION_COOKIE_SECURE"] = is_https
-    # Trust Railway's proxy so request.is_secure and url_for work correctly
     app.wsgi_app = __import__('werkzeug.middleware.proxy_fix', fromlist=['ProxyFix']).ProxyFix(
         app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
     )
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    app.config["PERMANENT_SESSION_LIFETIME"] = 3600  # 1 hour timeout
+    app.config["PERMANENT_SESSION_LIFETIME"] = 3600
 
     db.init_app(app)
     login_manager.init_app(app)
@@ -79,9 +76,10 @@ def create_app():
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=(self)"
+        # FIX: removed 'unsafe-inline' from script-src
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "script-src 'self' https://fonts.googleapis.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: blob:; "
