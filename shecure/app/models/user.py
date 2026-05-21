@@ -2,6 +2,7 @@ from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db, login_manager
+from app.utils.keyderive import derive_access_key
 
 
 class User(UserMixin, db.Model):
@@ -21,10 +22,18 @@ class User(UserMixin, db.Model):
     activity_logs = db.relationship("ActivityLog", backref="user", lazy="dynamic")
 
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        # Step 1: derive the access key from the raw password (server-side only)
+        # Step 2: hash the derived key — this is what's stored in the DB
+        # A DB dump reveals only the bcrypt hash of an unrecognisable derived key,
+        # never anything traceable back to the original password.
+        access_key = derive_access_key(password, self.username)
+        self.password_hash = generate_password_hash(access_key)
 
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        # Derive the key from the submitted password the same way,
+        # then compare against the stored hash.
+        access_key = derive_access_key(password, self.username)
+        return check_password_hash(self.password_hash, access_key)
 
     def __repr__(self):
         return f"<User {self.username}>"
