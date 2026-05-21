@@ -66,15 +66,18 @@
               <div style="display:flex;gap:.4rem;flex-wrap:wrap">
                 {% if not user.is_approved %}
                 <form method="POST" action="{{ url_for('admin.approve_user', user_id=user.id) }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-success btn-sm" aria-label="Approve {{ user.username }}">✓ Approve</button>
                 </form>
                 {% else %}
                 <form method="POST" action="{{ url_for('admin.revoke_user', user_id=user.id) }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-ghost btn-sm" aria-label="Revoke access for {{ user.username }}">Revoke</button>
                 </form>
                 {% endif %}
                 {% if user.username != 'admin' %}
                 <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-danger btn-sm"
                     data-confirm="Delete {{ user.username }}? This cannot be undone."
                     aria-label="Delete {{ user.username }}">✗</button>
@@ -101,6 +104,7 @@
       <div class="card-body">
 
         <form method="POST" action="{{ url_for('admin.add_ip') }}" aria-label="Add IP to allow-list">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div style="display:flex;gap:.75rem;flex-wrap:wrap">
             <input class="form-control" type="text" name="ip_address"
               placeholder="e.g. 192.168.1.100" aria-label="IP address to allow"
@@ -126,6 +130,7 @@
               {% endif %}
             </div>
             <form method="POST" action="{{ url_for('admin.delete_ip', ip_id=ip_entry.id) }}" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-danger btn-sm"
                 data-confirm="Remove {{ ip_entry.ip_address }} from allow-list?"
                 aria-label="Remove IP {{ ip_entry.ip_address }}">✕</button>
