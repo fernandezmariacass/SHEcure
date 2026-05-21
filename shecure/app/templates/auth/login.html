@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>
     .☘︎ ݁˖ </text></svg>" />
+  <script src="https://www.google.com/recaptcha/api.js?render=6Ld7CfUsAAAAANROgI_X0z46Sr685ugPMcFqJLWl"></script>
 </head>
 <body>
 <div class="auth-wrapper">
-  <!-- Brand panel -->
   <aside class="auth-brand" aria-label="SHEcure brand information">
     <div class="auth-brand-logo" aria-label="SHEcure logo">
       .☘︎ ݁˖ <span class="she">SHE</span>cure
@@ -43,7 +43,6 @@
     </div>
   </aside>
 
-  <!-- Form panel -->
   <main class="auth-form-panel">
     <div class="auth-card">
       <h1 class="auth-title">Welcome back</h1>
@@ -62,8 +61,9 @@
         {% endif %}
       {% endwith %}
 
-      <form method="POST" action="{{ url_for('auth.login') }}" novalidate>
+      <form method="POST" action="{{ url_for('auth.login') }}" novalidate id="login-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="g-recaptcha-response" id="g-recaptcha-response-login">
         <div class="form-group">
           <label class="form-label" for="username">Username</label>
           <input
@@ -116,5 +116,18 @@
     </div>
   </main>
 </div>
+
+<script>
+  document.getElementById('login-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = this;
+    grecaptcha.ready(function() {
+      grecaptcha.execute('6Ld7CfUsAAAAANROgI_X0z46Sr685ugPMcFqJLWl', {action: 'login'}).then(function(token) {
+        document.getElementById('g-recaptcha-response-login').value = token;
+        form.submit();
+      });
+    });
+  });
+</script>
 </body>
 </html>
