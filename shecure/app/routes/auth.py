@@ -1,12 +1,12 @@
-from datetime import datetime, timedelta
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+from datetime import timedelta
+from urllib.parse import urlparse, urljoin
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db, limiter
 from app.models.user import User
-from app.models.logs import AccessLog
-from app.utils.security import log_access, validate_password_strength
+from app.models.logs import AccessLog, now_pst
+from app.utils.security import log_access, validate_password_strength, admin_required
 from app.utils.honeypot import is_honeypot_password, fire_honeypot_alert
-from app.models.logs import now_pst
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -22,6 +22,12 @@ def _is_locked_out(ip):
         AccessLog.timestamp > cutoff,
     ).count()
     return failures >= MAX_FAILED_ATTEMPTS
+
+
+def _is_safe_url(target):
+    ref = urlparse(request.host_url)
+    test = urlparse(urljoin(request.host_url, target))
+    return test.scheme in ("http", "https") and ref.netloc == test.netloc
 
 
 @auth_bp.route("/", methods=["GET"])
@@ -51,11 +57,8 @@ def login():
             return render_template("auth/login.html")
 
         # --- Honeypot canary check (runs BEFORE real credential check) ---
-        # If the canary password is entered, fire a silent max-severity alert
-        # but show the attacker a normal "invalid credentials" response.
         if is_honeypot_password(password):
             fire_honeypot_alert(username, ip, ua)
-            # Deliberate: same message and timing as a normal failure
             flash("Invalid username or password. 2 attempts remaining.", "danger")
             return render_template("auth/login.html")
 
@@ -79,12 +82,16 @@ def login():
             return render_template("auth/login.html")
 
         login_user(user, remember=remember)
-        user.last_seen = datetime.utcnow()
+        user.last_seen = now_pst()  # FIX: was datetime.utcnow()
         db.session.commit()
         log_access(username, "success", user_id=user.id)
         flash(f"Welcome back, {user.username}!", "success")
+
+        # FIX: validate ?next= to prevent open redirect
         next_page = request.args.get("next")
-        return redirect(next_page or url_for("dashboard.home"))
+        if not next_page or not _is_safe_url(next_page):
+            next_page = url_for("dashboard.home")
+        return redirect(next_page)
 
     return render_template("auth/login.html")
 
@@ -142,9 +149,11 @@ def logout():
     return redirect(url_for("auth.login"))
 
 
+# FIX: /debug-ip is now admin-only
 @auth_bp.route("/debug-ip")
+@login_required
+@admin_required
 def debug_ip():
-    from flask import jsonify
     return jsonify({
         "remote_addr": request.remote_addr,
         "x_forwarded_for": request.headers.get("X-Forwarded-For"),
