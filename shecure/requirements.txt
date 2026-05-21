@@ -25,3 +25,12 @@ Werkzeug==3.1.8
 wrapt==2.1.2
 pytz==2024.1
 gevent==26.4.0
+
+# ── Security additions ────────────────────────────────────────────────────────
+# 2FA (TOTP)
+pyotp==2.9.0
+# QR code generation for 2FA enrollment
+qrcode[pil]==7.4.2
+Pillow==10.4.0
+# Fernet symmetric encryption for TOTP secrets
+cryptography==42.0.8
