@@ -48,6 +48,7 @@
             {% if current_user.role == 'admin' %}
             <button class="btn btn-ghost btn-sm resolve-alert-btn"
               data-alert-id="{{ alert.id }}"
+              data-csrf="{{ csrf_token() }}"
               aria-label="Resolve alert {{ alert.id }}">
               ✓ Resolve
             </button>
