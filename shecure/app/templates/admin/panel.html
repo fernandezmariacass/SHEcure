@@ -75,6 +75,10 @@
                   <button type="submit" class="btn btn-ghost btn-sm" aria-label="Revoke access for {{ user.username }}">Revoke</button>
                 </form>
                 {% endif %}
+                <form method="POST" action="{{ url_for('admin.unlock_user', user_id=user.id) }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-outline btn-sm" aria-label="Clear lockout for {{ user.username }}" title="Clear failed login lockout">⟳ Unlock</button>
+                </form>
                 {% if user.username != 'admin' %}
                 <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" style="display:inline">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
