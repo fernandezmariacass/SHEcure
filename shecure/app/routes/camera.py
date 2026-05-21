@@ -14,6 +14,10 @@ _frame_time = 0
 _BROADCASTER_SECRET = os.environ.get("BROADCASTER_SECRET", "")
 BROADCASTER_USERNAME = os.environ.get("BROADCASTER_USERNAME", "admin")
 
+# ── Ingest limits ─────────────────────────────────────────────────────────────
+MAX_FRAME_BYTES = 500 * 1024   # 500 KB per frame
+MIN_FRAME_INTERVAL = 0.05      # max ~20 fps from broadcaster
+
 
 def _set_frame(jpeg_bytes):
     global _latest_frame, _frame_time
@@ -58,6 +62,8 @@ def feed_page():
 @login_required
 @approved_required
 def stream():
+    # ADDED: log every stream connection for accountability
+    _log_stream_access()
     return Response(
         _generate_viewer_stream(),
         mimetype="multipart/x-mixed-replace; boundary=frame",
@@ -69,9 +75,21 @@ def ingest():
     secret = request.headers.get("X-Broadcaster-Secret", "")
     if not _BROADCASTER_SECRET or not hmac.compare_digest(secret, _BROADCASTER_SECRET):
         abort(403)
+
+    # ADDED: enforce minimum interval to prevent DoS via frame flooding
+    _, last_ts = _get_frame()
+    if last_ts and (time.time() - last_ts) < MIN_FRAME_INTERVAL:
+        # Silently drop — don't penalise the broadcaster, just skip the frame
+        return jsonify({"ok": True})
+
     data = request.get_data()
     if not data:
         abort(400)
+
+    # ADDED: enforce max frame size to prevent memory exhaustion
+    if len(data) > MAX_FRAME_BYTES:
+        abort(413)
+
     _set_frame(data)
     return jsonify({"ok": True})
 
@@ -82,3 +100,27 @@ def status():
     _, ts = _get_frame()
     online = (time.time() - ts) < 5
     return jsonify({"online": online})
+
+
+# ── Internal helpers ──────────────────────────────────────────────────────────
+
+def _log_stream_access():
+    """Write an ActivityLog entry for every stream connection."""
+    try:
+        from app import db
+        from app.models.logs import ActivityLog
+        from app.utils.security import _get_real_ip
+        entry = ActivityLog(
+            user_id=current_user.id,
+            username=current_user.username,
+            ip_address=_get_real_ip(),
+            method="GET",
+            endpoint="/camera/stream",
+            action="Opened camera stream",
+            description="Live camera stream session started",
+            is_suspicious=False,
+        )
+        db.session.add(entry)
+        db.session.commit()
+    except Exception:
+        pass  # Never let logging break the stream
