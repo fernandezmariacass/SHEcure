@@ -14,7 +14,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), default="member")  # admin | member | viewer
-    is_approved = db.Column(db.Boolean, default=True)
+    is_approved = db.Column(db.Boolean, default=False)  # FIX: must be approved by admin before login
     created_at = db.Column(db.DateTime, default=now_pst)
     last_seen = db.Column(db.DateTime)
     avatar_color = db.Column(db.String(7), default="#e91e8c")
