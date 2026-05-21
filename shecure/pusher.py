@@ -1,13 +1,11 @@
 """
 pusher.py — Run this on YOUR LOCAL machine to stream your webcam/CCTV
             to the Railway server.
-
 Usage:
     python pusher.py --url https://YOUR-APP.railway.app \
                      --secret YOUR_BROADCASTER_SECRET \
                      --source 0
 """
-
 import cv2
 import time
 import argparse
@@ -16,7 +14,6 @@ import requests
 def run(server_url, secret, source):
     src = int(source) if str(source).isdigit() else source
     cap = cv2.VideoCapture(src)
-
     if not cap.isOpened():
         print(f"❌ Cannot open camera source: {source}")
         return
@@ -32,7 +29,7 @@ def run(server_url, secret, source):
             continue
 
         _, buf = cv2.imencode(".jpg", frame,
-                              [cv2.IMWRITE_JPEG_QUALITY, 70])
+                              [cv2.IMWRITE_JPEG_QUALITY, 40])
         try:
             r = requests.post(
                 ingest_url,
@@ -41,7 +38,7 @@ def run(server_url, secret, source):
                     "Content-Type":         "image/jpeg",
                     "X-Broadcaster-Secret": secret,
                 },
-                timeout=5,
+                timeout=10,
             )
             if r.status_code != 200:
                 print(f"Server replied {r.status_code}")
@@ -49,10 +46,9 @@ def run(server_url, secret, source):
             print(f"⚠️  Connection error: {e} — retrying in 2s")
             time.sleep(2)
 
-        time.sleep(1 / 15)   # 15 fps
+        time.sleep(1 / 5)   # 5 fps
 
     cap.release()
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
