@@ -42,6 +42,24 @@ def revoke_user(user_id):
     return redirect(url_for("admin.panel"))
 
 
+@admin_bp.route("/users/<int:user_id>/unlock", methods=["POST"])
+@login_required
+@admin_required
+def unlock_user(user_id):
+    """Clear failed login logs for a user so they are no longer locked out."""
+    from app.models.logs import AccessLog
+    user = User.query.get_or_404(user_id)
+    # Delete all "failed" access log entries for this username so the
+    # brute-force lockout counter resets immediately.
+    AccessLog.query.filter(
+        AccessLog.username_attempted == user.username,
+        AccessLog.status == "failed",
+    ).delete()
+    db.session.commit()
+    flash(f"{user.username}'s lockout cleared — they can now log in.", "success")
+    return redirect(url_for("admin.panel"))
+
+
 @admin_bp.route("/users/<int:user_id>/delete", methods=["POST"])
 @login_required
 @admin_required
