@@ -35,7 +35,6 @@ default — but you MUST set it in production for real security.
 
 import os
 import hashlib
-import warnings
 
 # ── pepper ────────────────────────────────────────────────────────────────────
 # Read at call time (not import time) so Railway env var changes take effect
@@ -43,14 +42,10 @@ import warnings
 def _get_pepper() -> bytes:
     pepper = os.environ.get("KEY_PEPPER", "").strip()
     if not pepper:
-        warnings.warn(
-            "KEY_PEPPER env var is not set. Password key derivation is weakened. "
-            "Set KEY_PEPPER in your Railway environment variables immediately.",
-            RuntimeWarning,
-            stacklevel=3,
+        raise RuntimeError(
+            "KEY_PEPPER environment variable must be set in production. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
         )
-        # Fallback so the app still runs, but this should never be used in prod
-        pepper = "shecure-default-pepper-change-me"
     return pepper.encode()
 
 
