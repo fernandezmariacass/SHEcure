@@ -123,9 +123,12 @@ def login():
             flash(f"Invalid username or password. {remaining} attempts remaining.", "danger")
             return render_template("auth/login.html")
 
+        # FIX: is_approved check moved AFTER password verification.
+        # Correct password but not yet approved → clear "pending approval" message.
+        # Wrong password → still just "invalid credentials" (no info leak).
         if not user.is_approved:
             log_access(username, "blocked", reason="Account not approved", user_id=user.id)
-            flash("Your account is pending approval.", "warning")
+            flash("Your account is pending approval by an administrator.", "warning")
             return render_template("auth/login.html")
 
         # --- Clear session before login to prevent session fixation ---
