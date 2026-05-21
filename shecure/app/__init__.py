@@ -71,9 +71,19 @@ def create_app():
     from app.utils.security import register_security_middleware
     register_security_middleware(app)
 
+    @app.before_request
+    def set_csp_nonce():
+        import base64
+        from flask import g
+        g.csp_nonce = base64.b64encode(os.urandom(16)).decode("utf-8")
+
     @app.context_processor
-    def inject_recaptcha_site_key():
-        return {"recaptcha_site_key": os.environ.get("RECAPTCHA_SITE_KEY", "")}
+    def inject_template_globals():
+        from flask import g
+        return {
+            "recaptcha_site_key": os.environ.get("RECAPTCHA_SITE_KEY", ""),
+            "csp_nonce": g.get("csp_nonce", ""),
+        }
 
     # ── Security headers on every response ────────────────────────────────────
     @app.after_request
@@ -100,9 +110,11 @@ def create_app():
             "serial=(), hid=()"
         )
 
+        from flask import g
+        nonce = g.get("csp_nonce", "")
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' https://fonts.googleapis.com "
+            f"script-src 'self' 'nonce-{nonce}' "
             "https://www.google.com https://www.gstatic.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
             "font-src 'self' https://fonts.gstatic.com; "
