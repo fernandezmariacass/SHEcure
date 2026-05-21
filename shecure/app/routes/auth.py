@@ -131,9 +131,10 @@ def login():
             flash("Your account is pending approval by an administrator.", "warning")
             return render_template("auth/login.html")
 
-        # --- Clear session before login to prevent session fixation ---
-        session.clear()
-
+        # Flask-Login's login_user() handles session fixation protection
+        # internally by regenerating the session. Calling session.clear()
+        # before it was wiping the session that login_user() just wrote to,
+        # causing the login to silently fail on every attempt.
         login_user(user, remember=remember)
         user.last_seen = now_pst()
         db.session.commit()
