@@ -1,6 +1,6 @@
 from datetime import timedelta
 from urllib.parse import urlparse, urljoin
-from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db, limiter
 from app.models.user import User
@@ -15,9 +15,21 @@ LOCKOUT_MINUTES = 30
 
 
 def _is_locked_out(ip):
+    """Block by IP address."""
     cutoff = now_pst() - timedelta(minutes=LOCKOUT_MINUTES)
     failures = AccessLog.query.filter(
         AccessLog.ip_address == ip,
+        AccessLog.status == "failed",
+        AccessLog.timestamp > cutoff,
+    ).count()
+    return failures >= MAX_FAILED_ATTEMPTS
+
+
+def _is_username_locked(username):
+    """Block by username — catches attackers rotating IPs."""
+    cutoff = now_pst() - timedelta(minutes=LOCKOUT_MINUTES)
+    failures = AccessLog.query.filter(
+        AccessLog.username_attempted == username,
         AccessLog.status == "failed",
         AccessLog.timestamp > cutoff,
     ).count()
@@ -50,19 +62,26 @@ def login():
         ip = request.remote_addr
         ua = request.user_agent.string
 
-        # --- Brute force lockout ---
+        # --- Brute force lockout: by IP ---
         if _is_locked_out(ip):
-            log_access(username, "blocked", reason="Brute force lockout")
+            log_access(username, "blocked", reason="Brute force lockout (IP)")
             flash(f"Too many failed attempts. Try again in {LOCKOUT_MINUTES} minutes.", "danger")
             return render_template("auth/login.html")
 
-        # --- Honeypot canary check (runs BEFORE real credential check) ---
+        # --- Brute force lockout: by username (catches proxy rotators) ---
+        if _is_username_locked(username):
+            log_access(username, "blocked", reason="Brute force lockout (username)")
+            flash(f"Too many failed attempts. Try again in {LOCKOUT_MINUTES} minutes.", "danger")
+            return render_template("auth/login.html")
+
+        # --- DB lookup first (before honeypot) to normalise timing ---
+        user = User.query.filter_by(username=username).first()
+
+        # --- Honeypot canary check AFTER DB lookup so timing is consistent ---
         if is_honeypot_password(password):
             fire_honeypot_alert(username, ip, ua)
             flash("Invalid username or password. 2 attempts remaining.", "danger")
             return render_template("auth/login.html")
-
-        user = User.query.filter_by(username=username).first()
 
         if not user or not user.check_password(password):
             log_access(username, "failed", reason="Invalid credentials")
@@ -81,13 +100,15 @@ def login():
             flash("Your account is pending approval.", "warning")
             return render_template("auth/login.html")
 
+        # --- Clear session before login to prevent session fixation ---
+        session.clear()
+
         login_user(user, remember=remember)
-        user.last_seen = now_pst()  # FIX: was datetime.utcnow()
+        user.last_seen = now_pst()
         db.session.commit()
         log_access(username, "success", user_id=user.id)
         flash(f"Welcome back, {user.username}!", "success")
 
-        # FIX: validate ?next= to prevent open redirect
         next_page = request.args.get("next")
         if not next_page or not _is_safe_url(next_page):
             next_page = url_for("dashboard.home")
@@ -122,12 +143,10 @@ def register():
                 flash(err, "danger")
             return render_template("auth/register.html")
 
-        if User.query.filter_by(username=username).first():
-            flash("Username already taken.", "danger")
-            return render_template("auth/register.html")
-
-        if User.query.filter_by(email=email).first():
-            flash("Email already registered.", "danger")
+        # --- Generic message prevents username/email enumeration ---
+        if User.query.filter_by(username=username).first() or \
+           User.query.filter_by(email=email).first():
+            flash("An account with those details already exists.", "danger")
             return render_template("auth/register.html")
 
         user = User(username=username, email=email)
@@ -149,7 +168,6 @@ def logout():
     return redirect(url_for("auth.login"))
 
 
-# FIX: /debug-ip is now admin-only
 @auth_bp.route("/debug-ip")
 @login_required
 @admin_required
