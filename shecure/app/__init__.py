@@ -77,13 +77,17 @@ def create_app():
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=(self)"
         # FIX: removed 'unsafe-inline' from script-src
+        # FIX: added reCAPTCHA domains (www.google.com, www.gstatic.com) to script-src
+        # FIX: added frame-src for reCAPTCHA iframe
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' https://fonts.googleapis.com; "
+            "script-src 'self' https://fonts.googleapis.com "
+                "https://www.google.com https://www.gstatic.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: blob:; "
-            "connect-src 'self';"
+            "frame-src https://www.google.com; "
+            "connect-src 'self' https://www.google.com;"
         )
         return response
 
