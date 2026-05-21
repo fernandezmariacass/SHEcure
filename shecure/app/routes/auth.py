@@ -5,6 +5,7 @@ from app import db, limiter
 from app.models.user import User
 from app.models.logs import AccessLog
 from app.utils.security import log_access, validate_password_strength
+from app.utils.honeypot import is_honeypot_password, fire_honeypot_alert
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -40,11 +41,21 @@ def login():
         password = request.form.get("password", "")
         remember = bool(request.form.get("remember"))
         ip = request.remote_addr
+        ua = request.user_agent.string
 
         # --- Brute force lockout ---
         if _is_locked_out(ip):
             log_access(username, "blocked", reason="Brute force lockout")
             flash(f"Too many failed attempts. Try again in {LOCKOUT_MINUTES} minutes.", "danger")
+            return render_template("auth/login.html")
+
+        # --- Honeypot canary check (runs BEFORE real credential check) ---
+        # If the canary password is entered, fire a silent max-severity alert
+        # but show the attacker a normal "invalid credentials" response.
+        if is_honeypot_password(password):
+            fire_honeypot_alert(username, ip, ua)
+            # Deliberate: same message and timing as a normal failure
+            flash("Invalid username or password. 2 attempts remaining.", "danger")
             return render_template("auth/login.html")
 
         user = User.query.filter_by(username=username).first()
@@ -119,6 +130,7 @@ def register():
         return redirect(url_for("auth.login"))
 
     return render_template("auth/register.html")
+
 
 @auth_bp.route("/logout")
 @login_required
