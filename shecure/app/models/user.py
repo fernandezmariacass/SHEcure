@@ -3,6 +3,7 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db, login_manager
 from app.utils.keyderive import derive_access_key
+from app.models.logs import now_pst
 
 
 class User(UserMixin, db.Model):
@@ -14,7 +15,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), default="member")  # admin | member | viewer
     is_approved = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=now_pst)
     last_seen = db.Column(db.DateTime)
     avatar_color = db.Column(db.String(7), default="#e91e8c")
 
@@ -46,7 +47,7 @@ class AllowedIP(db.Model):
     ip_address = db.Column(db.String(45), unique=True, nullable=False)
     label = db.Column(db.String(100))
     added_by = db.Column(db.Integer, db.ForeignKey("users.id"))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=now_pst)
     is_active = db.Column(db.Boolean, default=True)
 
 
