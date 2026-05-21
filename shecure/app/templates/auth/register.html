@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <script src="https://www.google.com/recaptcha/api.js?render=6Ld7CfUsAAAAANROgI_X0z46Sr685ugPMcFqJLWl"></script>
 </head>
 <body>
 <div class="auth-wrapper">
@@ -40,8 +41,9 @@
         {% endfor %}{% endif %}
       {% endwith %}
 
-      <form method="POST" action="{{ url_for('auth.register') }}" novalidate>
+      <form method="POST" action="{{ url_for('auth.register') }}" novalidate id="register-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="g-recaptcha-response" id="g-recaptcha-response-register">
         <div class="form-group">
           <label class="form-label" for="username">Username</label>
           <input class="form-control" type="text" id="username" name="username"
@@ -84,5 +86,18 @@
     </div>
   </main>
 </div>
+
+<script>
+  document.getElementById('register-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var form = this;
+    grecaptcha.ready(function() {
+      grecaptcha.execute('6Ld7CfUsAAAAANROgI_X0z46Sr685ugPMcFqJLWl', {action: 'register'}).then(function(token) {
+        document.getElementById('g-recaptcha-response-register').value = token;
+        form.submit();
+      });
+    });
+  });
+</script>
 </body>
 </html>
