@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>
     .☘︎ ݁˖ </text></svg>" />
-  <script src="https://www.google.com/recaptcha/api.js?render=6Ld7CfUsAAAAANROgI_X0z46Sr685ugPMcFqJLWl"></script>
+  <script src="https://www.google.com/recaptcha/api.js?render={{ recaptcha_site_key }}"></script>
 </head>
 <body>
 <div class="auth-wrapper">
@@ -122,7 +122,7 @@
     e.preventDefault();
     var form = this;
     grecaptcha.ready(function() {
-      grecaptcha.execute('6Ld7CfUsAAAAANROgI_X0z46Sr685ugPMcFqJLWl', {action: 'login'}).then(function(token) {
+      grecaptcha.execute('{{ recaptcha_site_key }}', {action: 'login'}).then(function(token) {
         document.getElementById('g-recaptcha-response-login').value = token;
         form.submit();
       });
