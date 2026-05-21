@@ -48,9 +48,12 @@ def _is_locked_out(ip):
 
 def _is_username_locked(username):
     """Block by username — catches attackers rotating IPs."""
+    from sqlalchemy import func
     cutoff = now_pst() - timedelta(minutes=LOCKOUT_MINUTES)
+    # FIX: use func.lower() for case-insensitive match so "maria" and "Maria"
+    # resolve to the same lockout bucket — prevents bypass via case variation.
     failures = AccessLog.query.filter(
-        AccessLog.username_attempted == username,
+        func.lower(AccessLog.username_attempted) == username.lower(),
         AccessLog.status == "failed",
         AccessLog.timestamp > cutoff,
     ).count()
