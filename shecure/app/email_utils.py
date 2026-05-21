@@ -69,7 +69,10 @@ def _send_email(to_address: str, subject: str, html_body: str) -> None:
     except Exception as exc:
         # Log but never propagate — email failure must not break login
         import logging
-        logging.getLogger(__name__).warning("Email send failed: %s", exc)
+        import traceback
+        logging.getLogger(__name__).error(
+            "Email send failed: %s\n%s", exc, traceback.format_exc()
+        )
 
 
 def send_new_login_alert(user, ip: str, user_agent: str, timestamp: str) -> None:
