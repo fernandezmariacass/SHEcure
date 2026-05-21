@@ -118,6 +118,11 @@
 
 {% block scripts %}
 <script>
+// ── XSS sanitizer — escapes all user-controlled data before innerHTML ─────────
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 function offlineHTML() {
   return `<div class="camera-offline-overlay" role="img" aria-label="Camera offline">
     <div class="camera-offline-icon" aria-hidden="true"></div>
@@ -152,9 +157,9 @@ function loadAlerts() {
         <div class="alert-item">
           <div class="alert-item-icon" aria-hidden="true"></div>
           <div class="alert-item-body">
-            <div class="alert-item-ip">${a.ip}</div>
-            <div class="alert-item-meta">${a.endpoint} · ${a.timestamp}</div>
-            ${a.threat_score ? `<div class="alert-item-meta" style="color:var(--danger);font-size:.75rem">Risk score: ${a.threat_score}/100 — ${a.threat_reason || ''}</div>` : ''}
+            <div class="alert-item-ip">${esc(a.ip)}</div>
+            <div class="alert-item-meta">${esc(a.endpoint)} · ${esc(a.timestamp)}</div>
+            ${a.threat_score ? `<div class="alert-item-meta" style="color:var(--danger);font-size:.75rem">Risk score: ${esc(a.threat_score)}/100 — ${esc(a.threat_reason)}</div>` : ''}
           </div>
         </div>
       `).join('');
@@ -208,10 +213,10 @@ function loadActivityFeed() {
       ? `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No activity yet</td></tr>`
       : rows.slice(0, 10).map(row => `
           <tr>
-            <td class="text-mono" style="font-size:.78rem">${row.ip}</td>
-            <td style="font-size:.85rem">${row.user}</td>
-            <td><span class="badge ${row.badgeClass}" style="font-size:.72rem;white-space:nowrap">${row.action}</span></td>
-            <td class="text-muted" style="font-size:.75rem;white-space:nowrap">${row.time.replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
+            <td class="text-mono" style="font-size:.78rem">${esc(row.ip)}</td>
+            <td style="font-size:.85rem">${esc(row.user)}</td>
+            <td><span class="badge ${esc(row.badgeClass)}" style="font-size:.72rem;white-space:nowrap">${esc(row.action)}</span></td>
+            <td class="text-muted" style="font-size:.75rem;white-space:nowrap">${esc(row.time).replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
           </tr>`).join('');
 
     // Only update DOM if content actually changed — prevents flash on re-render
