@@ -329,6 +329,20 @@ def disable_2fa():
     return redirect(url_for("dashboard.home"))
 
 
+@auth_bp.route("/test-email")
+@login_required
+@admin_required
+def test_email():
+    from app.utils.email_utils import _send_email
+    _send_email(
+        current_user.email,
+        "SHEcure Test Email",
+        "<h2>It works!</h2><p>SMTP is configured correctly.</p>"
+    )
+    flash("Test email sent — check your inbox and Railway logs.", "info")
+    return redirect(url_for("dashboard.home"))
+
+
 @auth_bp.route("/debug-ip")
 @login_required
 @admin_required
