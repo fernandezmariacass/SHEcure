@@ -1,4 +1,5 @@
 import os
+import time
 import requests as http_requests
 from datetime import timedelta
 from urllib.parse import urlparse, urljoin
@@ -111,18 +112,21 @@ def login():
         # --- Honeypot canary check AFTER DB lookup so timing is consistent ---
         if is_honeypot_password(password):
             fire_honeypot_alert(username, ip, ua)
+            time.sleep(30)  # Tarpit: hold attacker connection for 30 seconds
             flash("Invalid username or password. 2 attempts remaining.", "danger")
             return render_template("auth/login.html")
 
         if not user or not user.check_password(password):
             log_access(username, "failed", reason="Invalid credentials")
-            remaining = max(0, MAX_FAILED_ATTEMPTS - (
-                AccessLog.query.filter(
-                    AccessLog.ip_address == ip,
-                    AccessLog.status == "failed",
-                    AccessLog.timestamp > now_pst() - timedelta(minutes=LOCKOUT_MINUTES),
-                ).count()
-            ))
+            failed_count = AccessLog.query.filter(
+                AccessLog.ip_address == ip,
+                AccessLog.status == "failed",
+                AccessLog.timestamp > now_pst() - timedelta(minutes=LOCKOUT_MINUTES),
+            ).count()
+            # Tarpit: exponential delay per failure (2s, 4s, 8s... capped at 30s)
+            tarpit_delay = min(2 ** failed_count, 30)
+            time.sleep(tarpit_delay)
+            remaining = max(0, MAX_FAILED_ATTEMPTS - failed_count)
             flash(f"Invalid username or password. {remaining} attempts remaining.", "danger")
             return render_template("auth/login.html")
 
