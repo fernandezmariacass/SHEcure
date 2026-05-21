@@ -116,7 +116,11 @@ overlay?.addEventListener('click', closeSidebar);
 document.querySelectorAll('.resolve-alert-btn').forEach(btn => {
   btn.addEventListener('click', async function () {
     const alertId = this.dataset.alertId;
-    const res = await fetch(`/admin/alerts/${alertId}/resolve`, { method: 'POST' });
+    const csrf = this.dataset.csrf;
+    const res = await fetch(`/admin/alerts/${alertId}/resolve`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf },
+    });
     const data = await res.json();
     if (data.ok) {
       const row = document.getElementById(`alert-row-${alertId}`);
