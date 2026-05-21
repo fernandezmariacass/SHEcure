@@ -1,3 +1,5 @@
+import os
+import requests as http_requests
 from datetime import timedelta
 from urllib.parse import urlparse, urljoin
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, session
@@ -12,6 +14,25 @@ auth_bp = Blueprint("auth", __name__)
 
 MAX_FAILED_ATTEMPTS = 3
 LOCKOUT_MINUTES = 30
+RECAPTCHA_SECRET = os.environ.get("RECAPTCHA_SECRET_KEY", "")
+RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify"
+RECAPTCHA_MIN_SCORE = 0.5
+
+
+def _verify_recaptcha(token):
+    """Verify reCAPTCHA v3 token with Google. Returns True if human, False if bot."""
+    if not RECAPTCHA_SECRET or not token:
+        return True  # If not configured, fail open (don't break login)
+    try:
+        resp = http_requests.post(RECAPTCHA_VERIFY_URL, data={
+            "secret": RECAPTCHA_SECRET,
+            "response": token,
+            "remoteip": request.remote_addr,
+        }, timeout=5)
+        result = resp.json()
+        return result.get("success") and result.get("score", 0) >= RECAPTCHA_MIN_SCORE
+    except Exception:
+        return True  # Network error — fail open so real users aren't locked out
 
 
 def _is_locked_out(ip):
@@ -59,8 +80,15 @@ def login():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         remember = bool(request.form.get("remember"))
+        recaptcha_token = request.form.get("g-recaptcha-response", "")
         ip = request.remote_addr
         ua = request.user_agent.string
+
+        # --- reCAPTCHA v3 check ---
+        if not _verify_recaptcha(recaptcha_token):
+            log_access(username, "blocked", reason="Failed reCAPTCHA (bot detected)")
+            flash("Verification failed. Please try again.", "danger")
+            return render_template("auth/login.html")
 
         # --- Brute force lockout: by IP ---
         if _is_locked_out(ip):
@@ -128,6 +156,12 @@ def register():
         email = request.form.get("email", "").strip()
         password = request.form.get("password", "")
         confirm = request.form.get("confirm_password", "")
+        recaptcha_token = request.form.get("g-recaptcha-response", "")
+
+        # --- reCAPTCHA v3 check ---
+        if not _verify_recaptcha(recaptcha_token):
+            flash("Verification failed. Please try again.", "danger")
+            return render_template("auth/register.html")
 
         if not all([username, email, password, confirm]):
             flash("All fields are required.", "danger")
