@@ -1,4 +1,5 @@
 import os
+import hmac
 import time
 import threading
 from flask import Blueprint, render_template, Response, request, jsonify, abort
@@ -66,7 +67,7 @@ def stream():
 @camera_bp.route("/ingest", methods=["POST"])
 def ingest():
     secret = request.headers.get("X-Broadcaster-Secret", "")
-    if secret != _BROADCASTER_SECRET:
+    if not _BROADCASTER_SECRET or not hmac.compare_digest(secret, _BROADCASTER_SECRET):
         abort(403)
     data = request.get_data()
     if not data:
