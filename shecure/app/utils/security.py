@@ -278,7 +278,13 @@ def register_security_middleware(app):
 
         ip = _get_real_ip()
 
-        if not is_ip_allowed(ip):
+        # FIX: authenticated + approved users bypass the IP allowlist.
+        # The allowlist is meant to block unauthenticated strangers, not
+        # members who have already been verified and logged in by an admin.
+        from flask_login import current_user as _cu
+        user_is_cleared = _cu.is_authenticated and getattr(_cu, "is_approved", False)
+
+        if not user_is_cleared and not is_ip_allowed(ip):
             # Don't call get_data() here — body not needed for IP block alerts
             log_unauthorized_alert(ip, request.path,
                                    request.method, request.user_agent.string,
