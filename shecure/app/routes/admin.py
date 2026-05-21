@@ -118,3 +118,18 @@ def resolve_alert(alert_id):
 def logs():
     access = AccessLog.query.order_by(AccessLog.timestamp.desc()).limit(500).all()
     return render_template("admin/logs.html", logs=access)
+
+
+@admin_bp.route("/test-email", methods=["POST"])
+@login_required
+@admin_required
+def test_email():
+    from flask_login import current_user
+    from app.utils.email_utils import _send_email
+    _send_email(
+        current_user.email,
+        "SHEcure Test Email",
+        "<h2>It works!</h2><p>SMTP is configured correctly.</p>"
+    )
+    flash(f"Test email sent to {current_user.email} — check your inbox and Railway logs.", "info")
+    return redirect(url_for("admin.panel"))
