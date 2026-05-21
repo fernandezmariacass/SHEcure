@@ -31,12 +31,15 @@ def create_app():
         ].replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
-    is_https = os.environ.get("RAILWAY_ENVIRONMENT") is not None or \
-               os.environ.get("FLASK_ENV") == "production"
-    app.config["SESSION_COOKIE_SECURE"] = is_https
-    app.wsgi_app = __import__('werkzeug.middleware.proxy_fix', fromlist=['ProxyFix']).ProxyFix(
-        app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+
+    is_https = (
+        os.environ.get("RAILWAY_ENVIRONMENT") is not None
+        or os.environ.get("FLASK_ENV") == "production"
     )
+    app.config["SESSION_COOKIE_SECURE"] = is_https
+    app.wsgi_app = __import__(
+        "werkzeug.middleware.proxy_fix", fromlist=["ProxyFix"]
+    ).ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["PERMANENT_SESSION_LIFETIME"] = 3600
@@ -68,28 +71,39 @@ def create_app():
     from app.utils.security import register_security_middleware
     register_security_middleware(app)
 
-    # Inject reCAPTCHA site key into all templates via context processor
-    # so the key is never hardcoded in HTML — it comes from Railway env vars.
     @app.context_processor
     def inject_recaptcha_site_key():
-        import os
         return {"recaptcha_site_key": os.environ.get("RECAPTCHA_SITE_KEY", "")}
 
-    # --- Security headers on every response ---
+    # ── Security headers on every response ────────────────────────────────────
     @app.after_request
     def add_security_headers(response):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=(self)"
-        # FIX: removed 'unsafe-inline' from script-src
-        # FIX: added reCAPTCHA domains (www.google.com, www.gstatic.com) to script-src
-        # FIX: added frame-src for reCAPTCHA iframe
+
+        # ADDED: HSTS — tells browsers to only connect over HTTPS for 1 year.
+        # Only set in production (where HTTPS is active) to avoid breaking
+        # local http:// development.
+        if is_https:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+
+        # ADDED: Tightened Permissions-Policy — deny payment, USB, bluetooth,
+        # display-capture, and other high-risk browser features.
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=(self), "
+            "payment=(), usb=(), bluetooth=(), "
+            "display-capture=(), idle-detection=(), "
+            "serial=(), hid=()"
+        )
+
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' https://fonts.googleapis.com "
-                "https://www.google.com https://www.gstatic.com; "
+            "https://www.google.com https://www.gstatic.com; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: blob:; "
@@ -107,7 +121,9 @@ def _seed_default_admin():
         admin_email = os.environ.get("ADMIN_EMAIL", "")
         admin_password = os.environ.get("ADMIN_PASSWORD", "")
         if not admin_email or not admin_password:
-            raise RuntimeError("ADMIN_EMAIL and ADMIN_PASSWORD must be set to seed the admin account.")
+            raise RuntimeError(
+                "ADMIN_EMAIL and ADMIN_PASSWORD must be set to seed the admin account."
+            )
         admin = User(
             username="admin",
             email=admin_email,
