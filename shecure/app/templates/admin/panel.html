@@ -156,6 +156,9 @@
         <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm">⟡ View Alerts</a>
         <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline btn-sm">♡︎ Activity Log</a>
         <a href="{{ url_for('camera.feed_page') }}" class="btn btn-outline btn-sm">♛ Camera Feed</a>
+        <form method="POST" action="{{ url_for('admin.test_email') }}" style="display:inline">
+          <button type="submit" class="btn btn-outline btn-sm">✉ Test Email</button>
+        </form>
       </div>
     </div>
 
