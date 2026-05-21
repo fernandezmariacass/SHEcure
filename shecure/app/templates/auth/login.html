@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>
     .☘︎ ݁˖ </text></svg>" />
-  <script src="https://www.google.com/recaptcha/api.js?render={{ recaptcha_site_key }}"></script>
+  <script src="https://www.google.com/recaptcha/api.js?render={{ recaptcha_site_key }}" nonce="{{ csp_nonce }}"></script>
 </head>
 <body>
 <div class="auth-wrapper">
@@ -148,8 +148,7 @@
   </main>
 </div>
 
-<script>
-  document.getElementById('login-form').addEventListener('submit', function(e) {
+<script nonce="{{ csp_nonce }}">
     e.preventDefault();
     var form = this;
     grecaptcha.ready(function() {
