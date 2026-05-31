@@ -124,14 +124,14 @@
       </form>
       <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:1rem">
         {% for ip_entry in ips %}
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem .75rem;background:var(--gray-50);border-radius:var(--r-sm)">
-          <div>
-            <span class="ip-chip">{{ ip_entry.ip_address }}</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.6rem .75rem;background:var(--gray-50);border-radius:var(--r-sm);flex-wrap:nowrap">
+          <div style="display:flex;align-items:center;gap:.5rem;min-width:0">
+            <span class="ip-chip" style="white-space:nowrap">{{ ip_entry.ip_address }}</span>
             {% if ip_entry.label %}
-              <small class="text-muted" style="margin-left:.5rem">{{ ip_entry.label }}</small>
+              <small class="text-muted" style="white-space:nowrap">{{ ip_entry.label }}</small>
             {% endif %}
           </div>
-          <form method="POST" action="{{ url_for('admin.delete_ip', ip_id=ip_entry.id) }}" style="display:inline">
+          <form method="POST" action="{{ url_for('admin.delete_ip', ip_id=ip_entry.id) }}" style="display:inline;flex-shrink:0">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-danger btn-sm"
               data-confirm="Remove {{ ip_entry.ip_address }} from allow-list?"
