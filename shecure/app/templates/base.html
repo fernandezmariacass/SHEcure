@@ -120,7 +120,7 @@
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 {% block scripts %}{% endblock %}
 
-<style>
+<style nonce="{{ csp_nonce }}">
   @media (max-width: 768px) {
     #menu-toggle { display: flex !important; }
     #sidebar-overlay { display: block !important; opacity: 0; pointer-events: none; transition: opacity .3s; }
