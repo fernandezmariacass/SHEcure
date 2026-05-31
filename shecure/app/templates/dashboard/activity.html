@@ -10,8 +10,17 @@
     <h2 class="card-title">All User Activity</h2>
     <span class="badge badge-gray">{{ logs|length }} entries</span>
   </div>
-  <div class="table-wrapper">
-    <table aria-label="User activity log">
+  <div class="table-wrapper" style="overflow-x:hidden">
+    <table aria-label="User activity log" class="logs-table">
+      <colgroup>
+        <col style="width:7%">
+        <col style="width:13%">
+        <col style="width:20%">
+        <col style="width:13%">
+        <col style="width:15%">
+        <col style="width:20%">
+        <col style="width:12%">
+      </colgroup>
       <thead>
         <tr>
           <th scope="col">#</th>
@@ -30,10 +39,10 @@
           <td class="text-mono" style="font-size:.78rem">
             <span data-utc="{{ log.timestamp.isoformat() }}">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</span>
           </td>
-          <td style="font-size:.85rem">{{ log.username or log.user_id or '—' }}</td>
+          <td style="font-size:.78rem;font-family:monospace">{{ log.username or log.user_id or '—' }}</td>
           <td class="text-mono">{{ log.ip_address }}</td>
           <td style="font-size:.82rem">{{ log.action or log.description or '—' }}</td>
-          <td class="text-mono" style="font-size:.78rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          <td class="text-mono" style="font-size:.78rem">
             <span class="badge {% if log.method == 'POST' %}badge-warning{% else %}badge-info{% endif %}">
               {{ log.method }}
             </span>
