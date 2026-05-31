@@ -156,9 +156,10 @@ document.querySelectorAll('.resolve-alert-btn').forEach(btn => {
 
   let _pendingAction = null;
 
-  function showModal(message, icon, onConfirm) {
+  function showModal(message, icon, okLabel, onConfirm) {
     msgEl.textContent  = message;
     iconEl.textContent = icon || '⚠️';
+    okBtn.textContent  = okLabel || 'Confirm';
     _pendingAction     = onConfirm;
     modal.style.display       = 'flex';
     modal.style.visibility    = 'visible';
@@ -188,7 +189,7 @@ document.querySelectorAll('.resolve-alert-btn').forEach(btn => {
     btn.addEventListener('click', function (e) {
       e.preventDefault();
       const form = this.closest('form');
-      showModal(this.dataset.confirm, this.dataset.confirmIcon, () => {
+      showModal(this.dataset.confirm, this.dataset.confirmIcon, this.dataset.confirmOk, () => {
         if (form) form.submit();
       });
     });
@@ -198,7 +199,7 @@ document.querySelectorAll('.resolve-alert-btn').forEach(btn => {
   document.querySelectorAll('form[data-confirm]').forEach(form => {
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      showModal(this.dataset.confirm, this.dataset.confirmIcon, () => {
+      showModal(this.dataset.confirm, this.dataset.confirmIcon, this.dataset.confirmOk, () => {
         this.submit();
       });
     });
