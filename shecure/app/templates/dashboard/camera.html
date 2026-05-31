@@ -36,6 +36,23 @@
   </div>
 </div>
 
+{% if is_admin and not ip_allowed %}
+<!-- ── IP Not In Allow-list Notice ──────────────────────────────────────── -->
+<div class="card" style="max-width:1100px;margin:1.5rem auto 0;border:1px solid #f59e0b">
+  <div class="card-body" style="display:flex;align-items:flex-start;gap:1rem">
+    <div style="font-size:1.5rem;line-height:1">⚠️</div>
+    <div>
+      <strong style="color:#f59e0b">Your IP address is not in the allow-list.</strong>
+      <p style="margin:.4rem 0 0;font-size:.875rem;color:var(--gray-300,#d1d5db)">
+        Broadcasting requires your IP to be added to the allow-list first.
+        Ask another admin to add your current IP in the
+        <a href="{{ url_for('admin.panel') }}" style="color:#e91e8c">Admin Panel → IP Allow-list</a>.
+      </p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if is_broadcaster %}
 <!-- Hidden video + canvas used only for frame capture, never shown -->
 <video id="capture-video" autoplay muted playsinline style="display:none"></video>
@@ -197,9 +214,13 @@ ipModalCont.addEventListener('click', () => {
 });
 
 // ── Broadcaster-status polling (only while live) ──────────────────────────────
+let isBroadcasting = false;  // track whether a broadcast is actively running
+
 function startIpPolling() {
   ipWarningShown = false;
+  isBroadcasting = true;  // mark broadcast as active before polling starts
   ipCheckTimer = setInterval(async () => {
+    if (!isBroadcasting) return;  // never fire if no broadcast is running
     try {
       const res  = await fetch(BROADCASTER_STATUS_URL);
       const data = await res.json();
@@ -211,6 +232,7 @@ function startIpPolling() {
 }
 
 function stopIpPolling() {
+  isBroadcasting = false;  // mark broadcast as stopped before clearing
   clearInterval(ipCheckTimer);
   ipCheckTimer = null;
   hideIpWarning();
