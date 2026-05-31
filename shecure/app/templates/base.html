@@ -121,12 +121,12 @@
   </div>
 </div>
 
-<!-- Global confirm modal — must be before main.js -->
-<div id="admin-confirm-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:999999;background:rgba(0,0,0,.55);backdrop-filter:blur(3px);align-items:center;justify-content:center;">
-  <div style="background:var(--surface,#1e1e2e);border:1px solid var(--border,#e91e8c33);border-radius:12px;padding:1.75rem 2rem;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.35);text-align:center;">
-    <div id="admin-confirm-icon" style="font-size:2rem;margin-bottom:.6rem">⚠️</div>
-    <p id="admin-confirm-message" style="font-size:.95rem;color:var(--gray-200,#e5e7eb);line-height:1.55;margin-bottom:1.5rem"></p>
-    <div style="display:flex;gap:.75rem;justify-content:center">
+<!-- Global confirm popup — must be before main.js -->
+<div id="admin-confirm-modal">
+  <div class="confirm-box">
+    <div id="admin-confirm-icon" class="confirm-icon">⚠️</div>
+    <p id="admin-confirm-message" class="confirm-message"></p>
+    <div class="confirm-actions">
       <button id="admin-confirm-ok" class="btn btn-danger" style="min-width:110px">Confirm</button>
       <button id="admin-confirm-cancel" class="btn btn-outline" style="min-width:110px">Cancel</button>
     </div>
