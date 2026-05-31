@@ -41,6 +41,36 @@
 <video id="capture-video" autoplay muted playsinline style="display:none"></video>
 <canvas id="capture-canvas" style="display:none"></canvas>
 
+<!-- ── IP Removal Warning Modal ─────────────────────────────────────────── -->
+<div id="ip-warning-modal" style="
+  display:none;position:fixed;inset:0;z-index:9999;
+  background:rgba(0,0,0,.65);backdrop-filter:blur(4px);
+  align-items:center;justify-content:center;">
+  <div style="
+    background:var(--surface,#1e1e2e);border:1px solid #e91e8c;
+    border-radius:12px;padding:2rem;max-width:420px;width:90%;
+    box-shadow:0 0 40px rgba(233,30,140,.25);text-align:center;">
+    <div style="font-size:2rem;margin-bottom:.75rem">⚠️</div>
+    <h3 style="margin:0 0 .75rem;color:#e91e8c;font-size:1.15rem">Your IP Was Removed</h3>
+    <p style="color:var(--gray-300,#d1d5db);font-size:.9rem;margin-bottom:1.5rem;line-height:1.5">
+      Your IP address has been removed from the allow-list by an admin.
+      If you continue broadcasting, the stream will be cut on the next frame.
+      Do you want to stop the broadcast now?
+    </p>
+    <div style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap">
+      <button id="ip-modal-stop" class="btn btn-danger" style="min-width:130px">
+        ■ Stop Broadcast
+      </button>
+      <button id="ip-modal-continue" class="btn btn-outline" style="min-width:130px">
+        Keep Going
+      </button>
+    </div>
+    <p style="margin-top:1rem;font-size:.75rem;color:var(--gray-400,#9ca3af)">
+      Contact your admin to re-add your IP if this was a mistake.
+    </p>
+  </div>
+</div>
+
 <div class="card" style="max-width:1100px;margin:1.5rem auto 0">
   <div class="card-header">
     <h2 class="card-title">📡 Broadcast Controls</h2>
@@ -117,6 +147,7 @@ setInterval(pollStatus, 2000);
 
 {% if is_broadcaster %}
 const INGEST_URL         = "{{ url_for('camera.broadcast_proxy') }}";
+const BROADCASTER_STATUS_URL = "{{ url_for('camera.broadcaster_status') }}";
 const TARGET_FPS         = 15;
 const JPEG_QUALITY       = 0.7;
 
@@ -124,6 +155,8 @@ let mediaStream   = null;
 let broadcastLoop = null;
 let frameCount    = 0;
 let fpsTimer      = null;
+let ipCheckTimer  = null;   // polls broadcaster-status while live
+let ipWarningShown = false; // prevent repeated modal triggers
 
 const video          = document.getElementById('capture-video');
 const canvas         = document.getElementById('capture-canvas');
@@ -137,6 +170,52 @@ const grantBtn       = document.getElementById('grant-btn');
 const permSection    = document.getElementById('permission-section');
 const controlSection = document.getElementById('controls-section');
 const permError      = document.getElementById('permission-error');
+const ipModal        = document.getElementById('ip-warning-modal');
+const ipModalStop    = document.getElementById('ip-modal-stop');
+const ipModalCont    = document.getElementById('ip-modal-continue');
+
+// ── IP-removal modal helpers ──────────────────────────────────────────────────
+function showIpWarning() {
+  if (ipWarningShown) return;
+  ipWarningShown = true;
+  ipModal.style.display = 'flex';
+}
+
+function hideIpWarning() {
+  ipModal.style.display = 'none';
+}
+
+ipModalStop.addEventListener('click', () => {
+  hideIpWarning();
+  stopBtn.click();  // reuse existing stop logic
+});
+
+ipModalCont.addEventListener('click', () => {
+  // User chose to keep going — dismiss but re-arm for a future removal
+  hideIpWarning();
+  ipWarningShown = false;
+});
+
+// ── Broadcaster-status polling (only while live) ──────────────────────────────
+function startIpPolling() {
+  ipWarningShown = false;
+  ipCheckTimer = setInterval(async () => {
+    try {
+      const res  = await fetch(BROADCASTER_STATUS_URL);
+      const data = await res.json();
+      if (!data.authorized) {
+        showIpWarning();
+      }
+    } catch (e) { /* network blip — ignore */ }
+  }, 5000);   // check every 5 s
+}
+
+function stopIpPolling() {
+  clearInterval(ipCheckTimer);
+  ipCheckTimer = null;
+  hideIpWarning();
+  ipWarningShown = false;
+}
 
 // ── Grant permission ──────────────────────────────────────────────────────────
 grantBtn.addEventListener('click', async () => {
@@ -217,6 +296,8 @@ startBtn.addEventListener('click', async () => {
 
   fpsTimer = setInterval(() => { fpsEl.textContent = `${frameCount} fps`; frameCount = 0; }, 1000);
 
+  startIpPolling();  // begin monitoring IP allow-list status
+
   const interval = Math.round(1000 / TARGET_FPS);
   broadcastLoop = setInterval(() => {
     if (!video.videoWidth || !video.videoHeight || video.readyState < 2) return;
@@ -240,6 +321,7 @@ startBtn.addEventListener('click', async () => {
 stopBtn.addEventListener('click', async () => {
   clearInterval(broadcastLoop);
   clearInterval(fpsTimer);
+  stopIpPolling();
   broadcastLoop = null;
   if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
   video.srcObject = null;
