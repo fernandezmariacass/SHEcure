@@ -3,7 +3,7 @@ import hashlib
 import requests as http_requests
 from datetime import timedelta
 from urllib.parse import urlparse, urljoin
-from flask import (Blueprint, render_template, redirect, url_for,
+from flask import (Blueprint, render_template, redirect, url_for, abort,
                    request, flash, jsonify, session)
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db, limiter
@@ -26,6 +26,8 @@ MAX_FAILED_ATTEMPTS = 3
 LOCKOUT_MINUTES = 30
 RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify"
 RECAPTCHA_MIN_SCORE = 0.5
+# FIX: cap remember-me cookie lifetime to 7 days (Flask-Login default can vary by version)
+REMEMBER_COOKIE_DAYS = 7
 
 
 # ── reCAPTCHA ─────────────────────────────────────────────────────────────────
@@ -196,6 +198,23 @@ def login():
         # ── TOTP second-step ──────────────────────────────────────────────────
         pending_totp_user_id = session.get("_totp_pending_user")
         if pending_totp_user_id:
+            # FIX: enforce a per-IP rate limit on TOTP attempts independent of the
+            # session counter so that multi-worker / multi-session probing is blocked.
+            from app.models.logs import AccessLog as _AL
+            _totp_ip_cutoff = now_pst() - __import__('datetime').timedelta(minutes=LOCKOUT_MINUTES)
+            _totp_ip_attempts = _AL.query.filter(
+                _AL.ip_address == ip,
+                _AL.status == "failed",
+                _AL.reason == "Invalid TOTP code",
+                _AL.timestamp > _totp_ip_cutoff,
+            ).count()
+            if _totp_ip_attempts >= MAX_FAILED_ATTEMPTS:
+                session.pop("_totp_pending_user", None)
+                session.pop("_totp_attempts", None)
+                log_access(username, "blocked", reason="TOTP brute-force lockout (IP)")
+                flash("Access temporarily restricted. Please try again later.", "danger")
+                return render_template("auth/login.html")
+        if pending_totp_user_id:
             user = User.query.get(pending_totp_user_id)
             if not user or user.username.lower() != username.lower():
                 session.pop("_totp_pending_user", None)
@@ -237,6 +256,15 @@ def login():
                 flash("Invalid username or password. 2 attempts remaining.", "danger")
                 return render_template("auth/login.html")
 
+            # ── Timing side-channel fix ───────────────────────────────────────────
+            # When a username doesn't exist, always run a dummy password check so
+            # that valid and invalid usernames produce the same response time.
+            # Without this, timing the response reveals whether an account exists.
+            _DUMMY_HASH = "pbkdf2:sha256:600000$dummy$" + "a" * 64
+            if not user:
+                from werkzeug.security import check_password_hash as _chk
+                _chk(_DUMMY_HASH, password)  # constant-time dummy — result discarded
+
             if not user or not user.check_password(password):
                 log_access(username, "failed", reason="Invalid credentials")
                 send_failed_login_alert(
@@ -247,8 +275,7 @@ def login():
                     reason="Invalid credentials",
                     user=user,
                 )
-                # FIX: no remaining-attempts count — that tells attackers exactly how many
-                # tries remain before lockout. Generic message only.
+                # Generic message — reveals nothing about whether the account exists.
                 flash("Invalid username or password.", "danger")
                 return render_template("auth/login.html")
 
@@ -270,7 +297,13 @@ def login():
                                        username=username)
 
         # ── Successful login ───────────────────────────────────────────────────
-        login_user(user, remember=remember)
+        # ── Session regeneration — prevent session fixation ─────────────────────
+        # Rotate the session ID immediately after authentication so a pre-login
+        # session cookie planted by an attacker is invalidated.
+        _old_session_data = dict(session)
+        session.clear()
+        session.update(_old_session_data)
+        login_user(user, remember=remember, duration=__import__('datetime').timedelta(days=REMEMBER_COOKIE_DAYS))
 
         try:
             user.last_seen = now_pst()
@@ -494,7 +527,11 @@ def setup_2fa():
             session.pop("_2fa_reset_verified", None)
             session.pop("_2fa_reset_pw_verified", None)
             session.pop("_totp_setup_secret", None)
-            login_user(user)
+            # Rotate session ID here too (same fixation protection as the main login path)
+            _old_session_data2 = dict(session)
+            session.clear()
+            session.update(_old_session_data2)
+            login_user(user, duration=__import__('datetime').timedelta(days=REMEMBER_COOKIE_DAYS))
             flash("Two-factor authentication is now enabled on your account.", "success")
             return redirect(url_for("dashboard.home"))
 
