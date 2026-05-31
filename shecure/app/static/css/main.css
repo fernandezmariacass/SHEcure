@@ -1092,3 +1092,13 @@ input[type="checkbox"] {
   flex-direction: column;
   gap: .75rem;
 }
+
+/* ── IP form ── */
+.ip-form {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+.ip-form .btn {
+  align-self: flex-start;
+}
