@@ -1082,11 +1082,12 @@ input[type="checkbox"] {
 
 /* ── Admin panel button groups ── */
 .btn-group-col {
-  display: flex;
-  flex-direction: column;
-  gap: .6rem;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .5rem;
 }
+.btn-group-col form { display: contents; }
+.btn-group-col .btn { width: 100%; justify-content: center; text-align: center; }
 .quick-links {
   display: flex;
   flex-direction: column;
