@@ -54,6 +54,10 @@ def create_app():
 
     is_https = is_production
     app.config["SESSION_COOKIE_SECURE"] = is_https
+    # FIX: x_for=1 trusts exactly ONE X-Forwarded-For hop (the Railway load balancer).
+    # Railway strips any client-supplied X-Forwarded-For headers before adding its own,
+    # so this is safe. If you move to a different host, verify that the host also strips
+    # attacker-supplied XFF headers — otherwise set x_for to the number of trusted proxies.
     app.wsgi_app = __import__(
         "werkzeug.middleware.proxy_fix", fromlist=["ProxyFix"]
     ).ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
@@ -152,7 +156,9 @@ def create_app():
             "default-src 'self'; "
             f"script-src 'self' 'nonce-{nonce}' "
             "https://www.google.com https://www.gstatic.com; "
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
+            # FIX: removed 'unsafe-inline' — use the per-request nonce for any
+            # inline styles that are truly needed, or move them to .css files.
+            f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com https://fonts.gstatic.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: blob:; "
             "frame-src https://www.google.com; "
