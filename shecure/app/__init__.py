@@ -72,6 +72,9 @@ def create_app():
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Please log in to access SHEcure."
     login_manager.login_message_category = "warning"
+    # FIX: cap remember-me cookies to 7 days (Flask-Login default varies by version)
+    from datetime import timedelta as _td
+    login_manager.remember_cookie_duration = _td(days=7)
 
     @login_manager.unauthorized_handler
     def unauthorized():
@@ -140,7 +143,9 @@ def create_app():
 
         if is_https:
             response.headers["Strict-Transport-Security"] = (
-                "max-age=31536000; includeSubDomains"
+                # FIX: added `preload` — submit this domain to hstspreload.org
+                # to prevent first-visit downgrade attacks that HSTS alone cannot stop.
+                "max-age=31536000; includeSubDomains; preload"
             )
 
         response.headers["Permissions-Policy"] = (
