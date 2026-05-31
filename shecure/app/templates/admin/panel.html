@@ -6,10 +6,11 @@
 <div class="pink-line"></div>
 
 <!-- ── Custom confirm modal (replaces all native window.confirm() calls) ──── -->
-<div id="admin-confirm-modal" class="admin-modal-hidden" style="
-  position:fixed;inset:0;z-index:9999;
+<div id="admin-confirm-modal" style="
+  display:none;position:fixed;inset:0;z-index:9999;
   background:rgba(0,0,0,.55);backdrop-filter:blur(3px);
-  align-items:center;justify-content:center;">
+  align-items:center;justify-content:center;
+  visibility:hidden;pointer-events:none;">
   <div style="
     background:var(--surface,#1e1e2e);border:1px solid var(--border,#e91e8c33);
     border-radius:12px;padding:1.75rem 2rem;max-width:400px;width:90%;
@@ -106,14 +107,15 @@
                   <button type="submit" class="btn btn-ghost btn-sm"
                     title="Send user a 2FA reset confirmation email"
                     data-confirm="Send 2FA reset email to {{ user.username }}?"
-                    data-confirm-icon="🔐">
+                    data-confirm-icon="🔐"
+                    data-confirm-ok="Send Email">
                     🔐 Reset 2FA
                   </button>
                 </form>
                 {% endif %}
 
                 <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}"
-                      data-confirm="Permanently delete {{ user.username }}? This cannot be undone." data-confirm-icon="🗑">
+                      data-confirm="Permanently delete {{ user.username }}? This cannot be undone." data-confirm-icon="🗑" data-confirm-ok="Delete User">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-danger btn-sm"
                     title="Permanently remove this user">
@@ -169,6 +171,7 @@
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-danger btn-sm"
                 data-confirm="Remove {{ ip_entry.ip_address }} from allow-list?"
+                data-confirm-ok="Remove IP">
                 aria-label="Remove IP {{ ip_entry.ip_address }}">✕</button>
             </form>
           </div>
@@ -198,7 +201,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-outline btn-sm">✉ Test Email</button>
         </form>
-        <form method="POST" action="{{ url_for('admin.purge_logs') }}" style="display:inline" data-confirm="Purge logs older than 90 days?" data-confirm-icon="🗑">
+        <form method="POST" action="{{ url_for('admin.purge_logs') }}" style="display:inline" data-confirm="Purge logs older than 90 days?" data-confirm-icon="🗑" data-confirm-ok="Purge Logs">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-outline btn-sm" style="color:#c0392b;border-color:#c0392b">🗑 Purge Old Logs</button>
         </form>
@@ -240,7 +243,7 @@
         </div>
         <div style="display:flex;align-items:flex-end">
           <button type="submit" class="btn btn-outline btn-sm"
-                  data-confirm="Unblock this IP now? They will regain access immediately." data-confirm-icon="✓">
+                  data-confirm="Unblock this IP now? They will regain access immediately." data-confirm-icon="✓" data-confirm-ok="Unblock">
             ✓ Unblock IP
           </button>
         </div>
@@ -287,7 +290,7 @@
                 <form method="POST" action="{{ url_for('admin.unblock_ip_route', block_id=b.id) }}" style="display:inline">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-outline btn-sm"
-                    data-confirm="Unblock {{ b.ip_address }} now?">Unblock</button>
+                    data-confirm="Unblock {{ b.ip_address }} now?" data-confirm-ok="Unblock">Unblock</button>
                 </form>
                 {% else %}
                   <span class="text-muted" style="font-size:.85rem">—</span>
@@ -360,30 +363,4 @@
   </div>
 
 </div>{# end outer flex-column #}
-
-<style>
-  .admin-modal-hidden { display: none !important; }
-</style>
-<script>
-(function () {
-  const modal = document.getElementById('admin-confirm-modal');
-  if (!modal) return;
-  // Watch for JS setting display via inline style and redirect to class toggle
-  const observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(m) {
-      if (m.attributeName === 'style') {
-        const s = modal.style.display;
-        if (s === 'flex') {
-          modal.classList.remove('admin-modal-hidden');
-          modal.style.display = '';
-        } else if (s === 'none') {
-          modal.classList.add('admin-modal-hidden');
-          modal.style.display = '';
-        }
-      }
-    });
-  });
-  observer.observe(modal, { attributes: true });
-})();
-</script>
 {% endblock %}
