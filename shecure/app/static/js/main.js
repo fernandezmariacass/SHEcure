@@ -1,5 +1,3 @@
-/* SHEcure — Main JS */
-
 // ── PST timestamp helper ─────────────────────
 function toPST(isoString) {
   if (!isoString) return '—';
@@ -154,11 +152,6 @@ document.querySelectorAll('.resolve-alert-btn').forEach(btn => {
     return;
   }
 
-  // Always force hidden on load regardless of any cached inline style
-  modal.style.display       = 'none';
-  modal.style.visibility    = 'hidden';
-  modal.style.pointerEvents = 'none';
-
   let _pendingAction = null;
 
   function showModal(message, icon, okLabel, onConfirm) {
@@ -166,15 +159,11 @@ document.querySelectorAll('.resolve-alert-btn').forEach(btn => {
     iconEl.textContent = icon || '⚠️';
     okBtn.textContent  = okLabel || 'Confirm';
     _pendingAction     = onConfirm;
-    modal.style.display       = 'flex';
-    modal.style.visibility    = 'visible';
-    modal.style.pointerEvents = 'auto';
+    modal.classList.add('is-open');
   }
 
   function hideModal() {
-    modal.style.display       = 'none';
-    modal.style.visibility    = 'hidden';
-    modal.style.pointerEvents = 'none';
+    modal.classList.remove('is-open');
     _pendingAction = null;
   }
 
