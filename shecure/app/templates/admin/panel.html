@@ -159,13 +159,13 @@
       {% else %}
       <span class="btn btn-outline btn-sm" style="opacity:.45;cursor:not-allowed;pointer-events:none">♛ Camera Feed (IP blocked)</span>
       {% endif %}
-      <form method="POST" action="{{ url_for('admin.test_email') }}" style="display:inline">
+      <form method="POST" action="{{ url_for('admin.test_email') }}" class="quick-link-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-outline btn-sm">✉ Test Email</button>
+        <button type="submit" class="btn btn-outline btn-sm quick-link-btn">✉ Test Email</button>
       </form>
-      <form method="POST" action="{{ url_for('admin.purge_logs') }}" style="display:inline" data-confirm="Purge logs older than 90 days?" data-confirm-icon="🗑" data-confirm-ok="Purge Logs">
+      <form method="POST" action="{{ url_for('admin.purge_logs') }}" class="quick-link-form" data-confirm="Purge logs older than 90 days?" data-confirm-icon="🗑" data-confirm-ok="Purge Logs">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-outline btn-sm" style="color:#c0392b;border-color:#c0392b">🗑 Purge Old Logs</button>
+        <button type="submit" class="btn btn-outline btn-sm quick-link-btn purge-btn">🗑 Purge Old Logs</button>
       </form>
     </div>
   </div>
