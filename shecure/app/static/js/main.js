@@ -160,11 +160,13 @@ document.querySelectorAll('.resolve-alert-btn').forEach(btn => {
     msgEl.textContent  = message;
     iconEl.textContent = icon || '⚠️';
     _pendingAction     = onConfirm;
+    modal.style.display       = 'flex';
     modal.style.visibility    = 'visible';
     modal.style.pointerEvents = 'auto';
   }
 
   function hideModal() {
+    modal.style.display       = 'none';
     modal.style.visibility    = 'hidden';
     modal.style.pointerEvents = 'none';
     _pendingAction = null;
