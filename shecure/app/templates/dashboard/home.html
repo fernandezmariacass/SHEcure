@@ -39,16 +39,16 @@
 </div>
 
 <!-- Main grid -->
-<div class="grid-2" style="align-items:stretch">
+<div class="grid-2" style="align-items:start">
 
   <!-- Recent Access -->
-  <div class="card" role="region" aria-label="Recent access log" style="display:flex;flex-direction:column">
+  <div class="card" role="region" aria-label="Recent access log">
     <div class="card-header">
       <h2 class="card-title">Recent Activity</h2>
       <span class="badge badge-pink">Live</span>
     </div>
-    <div style="overflow-x:hidden;flex:1;contain:layout style;will-change:transform">
-      <table aria-label="Recent activity table" class="logs-table">
+    <div style="overflow-x:auto;contain:layout style;will-change:transform">
+      <table aria-label="Recent activity table">
         <thead>
           <tr>
             <th scope="col">IP Address</th>
@@ -63,27 +63,29 @@
       </table>
     </div>
     <div class="card-header" style="border-top:1px solid var(--gray-100);border-bottom:none;justify-content:flex-end">
-      <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline btn-sm">View all →</a>
+      <a href="{{ url_for('dashboard.activity') }}" class="btn btn-ghost btn-sm">View all →</a>
     </div>
   </div>
 
   <!-- Alerts panel -->
-  <div class="card" role="region" aria-label="Security alerts" style="display:flex;flex-direction:column">
+  <div class="card" role="region" aria-label="Security alerts">
     <div class="card-header">
       <h2 class="card-title">Security Alerts</h2>
     </div>
-    <div class="card-header" style="border-top:none;padding-top:0">
-      <span style="font-size:.72rem;font-weight:600;letter-spacing:.08em;color:var(--gray-400);text-transform:uppercase">
-        {% if alert_count > 0 %}{{ alert_count }} UNRESOLVED{% else %}ALL CLEAR{% endif %}
-      </span>
+    <div style="padding:.6rem 1.25rem;border-bottom:1px solid var(--gray-100)">
+      {% if alert_count > 0 %}
+        <span class="badge badge-danger" id="alert-badge">{{ alert_count }} unresolved</span>
+      {% else %}
+        <span class="badge badge-success" id="alert-badge">All clear</span>
+      {% endif %}
     </div>
-    <div class="card-body" style="flex:1">
+    <div class="card-body">
       <div id="alert-feed">
         <p class="text-muted" style="font-size:.9rem">Loading alerts…</p>
       </div>
-    </div>
-    <div class="card-header" style="border-top:1px solid var(--gray-100);border-bottom:none;justify-content:flex-end">
-      <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm">View all alerts →</a>
+      <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm" style="margin-top:1rem">
+        View all alerts →
+      </a>
     </div>
   </div>
 
@@ -311,10 +313,10 @@ function loadActivityFeed() {
     if (!feed) return;
     const newHTML = !rows.length
       ? `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No activity yet</td></tr>`
-      : rows.slice(0, 4).map(row => `
+      : rows.slice(0, 10).map(row => `
           <tr>
             <td class="text-mono" style="font-size:.78rem">${esc(row.ip)}</td>
-            <td style="font-size:.85rem;font-family:monospace">${esc(row.user)}</td>
+            <td style="font-size:.85rem">${esc(row.user)}</td>
             <td><span class="badge ${esc(row.badgeClass)}" style="font-size:.72rem;white-space:nowrap">${esc(row.action)}</span></td>
             <td class="text-muted" style="font-size:.75rem;white-space:nowrap">${esc(row.time).replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
           </tr>`).join('');
