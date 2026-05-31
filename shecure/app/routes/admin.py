@@ -75,8 +75,11 @@ def revoke_user(user_id):
 def unlock_user(user_id):
     """Clear failed login logs for a user so they are no longer locked out."""
     user = User.query.get_or_404(user_id)
+    from app.utils.username_enc import hash_username
+    # FIX: access logs store HMAC-hashed usernames — delete by hash, not plaintext
+    hashed = hash_username(user.username)
     AccessLog.query.filter(
-        AccessLog.username_attempted == user.username,
+        AccessLog.username_attempted == hashed,
         AccessLog.status == "failed",
     ).delete()
     db.session.commit()
