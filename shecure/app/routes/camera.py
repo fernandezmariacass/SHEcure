@@ -312,9 +312,14 @@ def _log_stream_access():
         from app import db
         from app.models.logs import ActivityLog
         from app.utils.security import _get_real_ip
+        try:
+            from app.utils.username_enc import hash_username
+            _cam_uname = hash_username(current_user.username)
+        except Exception:
+            _cam_uname = current_user.username
         entry = ActivityLog(
             user_id=current_user.id,
-            username=current_user.username,
+            username=_cam_uname,
             ip_address=_get_real_ip(),
             method="GET",
             endpoint="/camera/stream",
