@@ -6,8 +6,13 @@ from app.utils.security import admin_required
 api_bp = Blueprint("api", __name__)
 
 
+# FIX: /alerts/unresolved and /alerts/count now require @admin_required.
+# Previously any logged-in member could poll live attack data (IPs, probed
+# endpoints, threat scores) — a free reconnaissance feed for an attacker who
+# registers a normal account.  Alert data is admin-only information.
 @api_bp.route("/alerts/unresolved")
 @login_required
+@admin_required
 def unresolved_alerts():
     alerts = UnauthorizedAlert.query.filter_by(resolved=False)\
         .order_by(UnauthorizedAlert.timestamp.desc()).limit(50).all()
@@ -16,6 +21,7 @@ def unresolved_alerts():
 
 @api_bp.route("/alerts/count")
 @login_required
+@admin_required
 def alert_count():
     count = UnauthorizedAlert.query.filter_by(resolved=False).count()
     return jsonify({"count": count})
