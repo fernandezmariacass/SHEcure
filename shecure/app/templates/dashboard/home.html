@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard Overview{% endblock %}
+
+{% block content %}
+<div class="pink-line"></div>
+
+<!-- Stats -->
+<div class="stats-grid" role="region" aria-label="Security statistics">
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-pink" aria-hidden="true">⋆☀︎｡</div>
+    <div>
+      <div class="stat-value" id="total-logins">—</div>
+      <div class="stat-label">Total Logins</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-red" aria-hidden="true">👁</div>
+    <div>
+      <div class="stat-value" style="color:var(--danger)" id="open-alerts">{{ alert_count }}</div>
+      <div class="stat-label">Open Alerts</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-green" aria-hidden="true">⚔</div>
+    <div>
+      <div class="stat-value" id="success-logins">—</div>
+      <div class="stat-label">Successful Logins</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-amber" aria-hidden="true">⋆.𐙚 ̊</div>
+    <div>
+      <div class="stat-value" id="blocked-attempts">—</div>
+      <div class="stat-label">Blocked Attempts</div>
+    </div>
+  </div>
+</div>
+
+<!-- Main grid -->
+<div class="grid-2" style="align-items:start">
+
+  <!-- Recent Access -->
+  <div class="card" role="region" aria-label="Recent access log">
+    <div class="card-header">
+      <h2 class="card-title">Recent Activity</h2>
+      <span class="badge badge-pink">Live</span>
+    </div>
+    <div style="overflow-x:auto;contain:layout style;will-change:transform">
+      <table aria-label="Recent activity table">
+        <thead>
+          <tr>
+            <th scope="col">IP Address</th>
+            <th scope="col">User</th>
+            <th scope="col">Action</th>
+            <th scope="col">Time (PST)</th>
+          </tr>
+        </thead>
+        <tbody id="live-activity-feed">
+          <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-header" style="border-top:1px solid var(--gray-100);border-bottom:none;justify-content:flex-end">
+      <a href="{{ url_for('dashboard.activity') }}" class="btn btn-ghost btn-sm">View all →</a>
+    </div>
+  </div>
+
+  <!-- Alerts panel -->
+  <div class="card" role="region" aria-label="Security alerts">
+    <div class="card-header">
+      <h2 class="card-title">Security Alerts</h2>
+      {% if alert_count > 0 %}
+        <span class="badge badge-danger" id="alert-badge">{{ alert_count }} unresolved</span>
+      {% else %}
+        <span class="badge badge-success" id="alert-badge">All clear</span>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      <div id="alert-feed">
+        <p class="text-muted" style="font-size:.9rem">Loading alerts…</p>
+      </div>
+      <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm" style="margin-top:1rem">
+        View all alerts →
+      </a>
+    </div>
+  </div>
+
+</div>
+
+<!-- Camera preview -->
+<div class="card mt-3" role="region" aria-label="Camera feed preview">
+  <div class="card-header">
+    <h2 class="card-title">📷 Camera Preview</h2>
+    <a href="{{ url_for('camera.feed_page') }}" class="btn btn-outline btn-sm">Full view →</a>
+  </div>
+  <div class="card-body">
+    <div class="camera-container" style="max-height:320px">
+      <img src="{{ url_for('camera.stream') }}" class="camera-feed"
+        alt="Live camera feed" id="dashboard-cam"
+        onerror="this.parentElement.innerHTML=offlineHTML()" />
+      <div class="camera-overlay" aria-hidden="true">
+        <div class="camera-corner camera-corner-tl"></div>
+        <div class="camera-corner camera-corner-tr"></div>
+        <div class="camera-corner camera-corner-bl"></div>
+        <div class="camera-corner camera-corner-br"></div>
+        <div class="camera-status-bar">
+          <div class="camera-live-dot">
+            <div class="live-indicator"></div>
+            <span id="camera-status-text">LIVE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── XSS sanitizer — escapes all user-controlled data before innerHTML ─────────
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function offlineHTML() {
+  return `<div class="camera-offline-overlay" role="img" aria-label="Camera offline">
+    <div class="camera-offline-icon" aria-hidden="true"></div>
+    <p>Camera unavailable</p>
+    <small>Check CAMERA_SOURCE in environment settings</small>
+  </div>`;
+}
+
+// ── Load all-time stats (not just last 20) ───────────────────────────────────
+function loadStats() {
+  fetch('/api/access/stats')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('total-logins').textContent = data.total ?? '—';
+      document.getElementById('success-logins').textContent = data.success ?? '—';
+      document.getElementById('blocked-attempts').textContent = data.blocked ?? '—';
+    }).catch(() => {});
+}
+loadStats();
+
+// ── Load alert feed ───────────────────────────────────────────────────────────
+function loadAlerts() {
+  fetch('/api/alerts/unresolved')
+    .then(r => r.json())
+    .then(alerts => {
+      const container = document.getElementById('alert-feed');
+      if (!alerts.length) {
+        container.innerHTML = `<p style="color:var(--success);font-size:.9rem">✓ No unresolved alerts</p>`;
+        return;
+      }
+      container.innerHTML = alerts.slice(0, 4).map(a => `
+        <div class="alert-item">
+          <div class="alert-item-icon" aria-hidden="true"></div>
+          <div class="alert-item-body">
+            <div class="alert-item-ip">${esc(a.ip)}</div>
+            <div class="alert-item-meta">${esc(a.endpoint)} · ${esc(a.timestamp)}</div>
+            ${a.threat_score ? `<div class="alert-item-meta" style="color:var(--danger);font-size:.75rem">Risk score: ${esc(a.threat_score)}/100 — ${esc(a.threat_reason)}</div>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }).catch(() => {});
+}
+loadAlerts();
+
+// ── Live activity feed ────────────────────────────────────────────────────────
+function loadActivityFeed() {
+  Promise.all([
+    fetch('/api/access/recent').then(r => r.json()).catch(() => []),
+    fetch('/api/activity/recent').then(r => r.json()).catch(() => []),
+  ]).then(([accessLogs, activityLogs]) => {
+    const rows = [];
+
+    accessLogs.forEach(log => {
+      rows.push({
+        ip: log.ip || '—',
+        user: log.username || '—',
+        action: log.status === 'success' ? 'Login' :
+                log.status === 'blocked' ? 'Blocked' :
+                log.status === 'logout'  ? 'Logout'  :
+                log.status === 'failed'  ? 'Failed login' : log.status,
+        badgeClass: log.status === 'success' ? 'badge-success' :
+                    log.status === 'blocked' ? 'badge-danger' : 'badge-warning',
+        time: log.timestamp || '',
+      });
+    });
+
+    activityLogs.forEach(log => {
+      rows.push({
+        ip: log.ip || '—',
+        user: log.username || '—',
+        action: log.action || log.description || log.endpoint || '—',
+        badgeClass: log.suspicious ? 'badge-danger' : 'badge-pink',
+        time: log.timestamp || '',
+      });
+    });
+
+    // Sort newest first
+    rows.sort((a, b) => {
+      const ta = a.time ? new Date(a.time.replace(' PST', '')) : 0;
+      const tb = b.time ? new Date(b.time.replace(' PST', '')) : 0;
+      return tb - ta;
+    });
+
+    const feed = document.getElementById('live-activity-feed');
+    if (!feed) return;
+
+    const newHTML = !rows.length
+      ? `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No activity yet</td></tr>`
+      : rows.slice(0, 10).map(row => `
+          <tr>
+            <td class="text-mono" style="font-size:.78rem">${esc(row.ip)}</td>
+            <td style="font-size:.85rem">${esc(row.user)}</td>
+            <td><span class="badge ${esc(row.badgeClass)}" style="font-size:.72rem;white-space:nowrap">${esc(row.action)}</span></td>
+            <td class="text-muted" style="font-size:.75rem;white-space:nowrap">${esc(row.time).replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
+          </tr>`).join('');
+
+    // Only update DOM if content actually changed — prevents flash on re-render
+    if (feed.innerHTML !== newHTML) {
+      feed.innerHTML = newHTML;
+    }
+  });
+}
+
+// Load immediately then refresh every 8 seconds
+loadActivityFeed();
+setInterval(loadActivityFeed, 8000);
+setInterval(loadStats, 30000);
+setInterval(loadAlerts, 15000);
+</script>
+{% endblock %}

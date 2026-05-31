@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Admin Audit Log{% endblock %}
+{% block page_title %}🔒 Admin Audit Log{% endblock %}
+
+{% block content %}
+<div class="pink-line"></div>
+
+<div class="card">
+  <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+    <h2 class="card-title">Destructive Admin Actions</h2>
+    <span class="badge badge-gray" style="font-size:.8rem">Last 500 entries · Read-only</span>
+  </div>
+  <div class="table-wrapper" style="border:none;overflow-x:auto">
+    <table style="min-width:700px;width:100%">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Actor</th>
+          <th>Action</th>
+          <th>Target</th>
+          <th>IP</th>
+          <th>Detail</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr style="vertical-align:middle">
+          <td style="font-size:.8rem;white-space:nowrap;color:var(--gray-400)">
+            {{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }} PST
+          </td>
+          <td>
+            <span class="badge badge-pink">{{ log.actor_username }}</span>
+          </td>
+          <td>
+            <span class="badge
+              {% if 'blocked' in log.action %}badge-warning
+              {% elif 'delete' in log.action or 'demote' in log.action %}badge-danger
+              {% else %}badge-gray{% endif %}">
+              {{ log.action }}
+            </span>
+          </td>
+          <td style="font-size:.85rem">{{ log.target_username or '—' }}</td>
+          <td style="font-size:.8rem;color:var(--gray-400)">{{ log.ip_address or '—' }}</td>
+          <td style="font-size:.8rem;color:var(--gray-400);max-width:280px;word-break:break-word">
+            {{ log.detail or '—' }}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" style="text-align:center;padding:2rem;color:var(--gray-400)">
+            No audit entries yet.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div style="margin-top:1rem">
+  <a href="{{ url_for('admin.panel') }}" class="btn btn-outline btn-sm">← Back to Admin Panel</a>
+</div>
+{% endblock %}

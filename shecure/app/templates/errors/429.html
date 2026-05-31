@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Too Many Requests | SHEcure</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #fff0f7;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    .alert {
+      padding: .85rem 1.2rem;
+      border-radius: 0;
+      font-size: .9rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: .6rem;
+      border-left: 4px solid #e91e8c;
+      background: transparent;
+      color: #e91e8c;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <div style="text-align:center;max-width:420px;padding:2rem">
+    <div style="font-size:4rem;margin-bottom:1rem" aria-hidden="true">⏳</div>
+    <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:2.5rem;color:#9c1261;margin-bottom:.5rem">
+      Too Many Requests
+    </h1>
+    <p style="color:#4b5563;margin-bottom:2rem">
+      You've made too many requests in a short period of time.
+      Please wait a moment before trying again.
+    </p>
+    <div class="alert" role="alert">
+      Rate limit exceeded. Please slow down.
+    </div>
+  </div>
+</body>
+</html>
