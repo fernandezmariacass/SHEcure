@@ -6,11 +6,10 @@
 <div class="pink-line"></div>
 
 <!-- ── Custom confirm modal (replaces all native window.confirm() calls) ──── -->
-<div id="admin-confirm-modal" style="
-  display:none;position:fixed;inset:0;z-index:9999;
+<div id="admin-confirm-modal" class="admin-modal-hidden" style="
+  position:fixed;inset:0;z-index:9999;
   background:rgba(0,0,0,.55);backdrop-filter:blur(3px);
-  align-items:center;justify-content:center;
-  visibility:hidden;pointer-events:none;">
+  align-items:center;justify-content:center;">
   <div style="
     background:var(--surface,#1e1e2e);border:1px solid var(--border,#e91e8c33);
     border-radius:12px;padding:1.75rem 2rem;max-width:400px;width:90%;
@@ -361,4 +360,30 @@
   </div>
 
 </div>{# end outer flex-column #}
+
+<style>
+  .admin-modal-hidden { display: none !important; }
+</style>
+<script>
+(function () {
+  const modal = document.getElementById('admin-confirm-modal');
+  if (!modal) return;
+  // Watch for JS setting display via inline style and redirect to class toggle
+  const observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      if (m.attributeName === 'style') {
+        const s = modal.style.display;
+        if (s === 'flex') {
+          modal.classList.remove('admin-modal-hidden');
+          modal.style.display = '';
+        } else if (s === 'none') {
+          modal.classList.add('admin-modal-hidden');
+          modal.style.display = '';
+        }
+      }
+    });
+  });
+  observer.observe(modal, { attributes: true });
+})();
+</script>
 {% endblock %}
