@@ -58,6 +58,15 @@ def _should_log(path):
 
 # ── IP detection ──────────────────────────────────────────────────────────────
 def _get_real_ip():
+    # Railway sits behind a load balancer — the real client IP is in
+    # X-Forwarded-For. ProxyFix(x_for=1) in __init__.py rewrites
+    # request.remote_addr for most code paths, but calling this helper
+    # directly (e.g. from camera.py before the middleware rewrites it)
+    # would return the load-balancer address. Read XFF explicitly so
+    # every caller gets the true client IP regardless of call site.
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
     return request.remote_addr or "unknown"
 
 _COMMON_PASSWORDS = {
@@ -248,6 +257,10 @@ EXEMPT_ENDPOINTS = {
     "camera.status",
     "camera.broadcast_proxy",
     "camera.clear_broadcast_proxy",
+    # FIX: broadcaster_status must be reachable even after the broadcaster's IP
+    # is removed — that's the whole point of the endpoint. Without this exemption
+    # the IP-removal warning modal can never fire because the poll itself gets 403'd.
+    "camera.broadcaster_status",
 }
 
 # Path-prefix fallback for /api/ and /camera/ in case endpoint resolution fails
@@ -255,6 +268,7 @@ _EXEMPT_PATH_PREFIXES = (
     "/api/",
     "/camera/stream",
     "/camera/status",
+    "/camera/broadcaster-status",   # FIX: path-level fallback for broadcaster_status
     "/static/",
     "/register",
     "/logout",
