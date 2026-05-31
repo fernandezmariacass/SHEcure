@@ -543,6 +543,7 @@ img { max-width: 100%; display: block; }
   border: 1px solid var(--gray-200);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+  margin-bottom: 2rem;
 }
 
 .card-header {
@@ -1077,4 +1078,17 @@ input[type="checkbox"] {
   gap: .5rem;
   min-width: 0;
   overflow: hidden;
+}
+
+/* ── Admin panel button groups ── */
+.btn-group-col {
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  align-items: flex-start;
+}
+.quick-links {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
 }
