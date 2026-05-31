@@ -7,9 +7,10 @@
 
 <!-- ── Custom confirm modal (replaces all native window.confirm() calls) ──── -->
 <div id="admin-confirm-modal" style="
-  display:none;position:fixed;inset:0;z-index:9999;
+  display:flex;position:fixed;inset:0;z-index:9999;
   background:rgba(0,0,0,.55);backdrop-filter:blur(3px);
-  align-items:center;justify-content:center;">
+  align-items:center;justify-content:center;
+  visibility:hidden;pointer-events:none;">
   <div style="
     background:var(--surface,#1e1e2e);border:1px solid var(--border,#e91e8c33);
     border-radius:12px;padding:1.75rem 2rem;max-width:400px;width:90%;
