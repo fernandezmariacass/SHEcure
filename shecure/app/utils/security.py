@@ -261,6 +261,7 @@ EXEMPT_ENDPOINTS = {
     # is removed — that's the whole point of the endpoint. Without this exemption
     # the IP-removal warning modal can never fire because the poll itself gets 403'd.
     "camera.broadcaster_status",
+     "ws_ingest",
 }
 
 # Path-prefix fallback for /api/ and /camera/ in case endpoint resolution fails
@@ -276,6 +277,7 @@ _EXEMPT_PATH_PREFIXES = (
     "/health",          # Railway healthcheck endpoint — must always be reachable
     # NOTE: honeypot paths are intentionally NOT listed here.
     # A banned IP must be blocked even before reaching a honeypot route.
+    "/ws/ingest",
 )
 
 # ── Suspicious payload patterns ───────────────────────────────────────────────
