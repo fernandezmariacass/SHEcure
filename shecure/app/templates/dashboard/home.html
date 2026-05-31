@@ -71,11 +71,11 @@
   <div class="card" role="region" aria-label="Security alerts" style="display:flex;flex-direction:column">
     <div class="card-header">
       <h2 class="card-title">Security Alerts</h2>
-      {% if alert_count > 0 %}
-        <span class="badge badge-danger" id="alert-badge">{{ alert_count }} unresolved</span>
-      {% else %}
-        <span class="badge badge-success" id="alert-badge">All clear</span>
-      {% endif %}
+    </div>
+    <div class="card-header" style="border-top:none;padding-top:0">
+      <span style="font-size:.72rem;font-weight:600;letter-spacing:.08em;color:var(--gray-400);text-transform:uppercase">
+        {% if alert_count > 0 %}{{ alert_count }} UNRESOLVED{% else %}ALL CLEAR{% endif %}
+      </span>
     </div>
     <div class="card-body" style="flex:1">
       <div id="alert-feed">
