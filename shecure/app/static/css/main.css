@@ -1026,8 +1026,8 @@ input[type="checkbox"] {
   position: fixed;
   inset: 0;
   z-index: 999999;
-  background: rgba(61, 8, 38, 0.6);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
   align-items: center;
   justify-content: center;
 }
