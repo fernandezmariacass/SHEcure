@@ -154,6 +154,11 @@ document.querySelectorAll('.resolve-alert-btn').forEach(btn => {
     return;
   }
 
+  // Always force hidden on load regardless of any cached inline style
+  modal.style.display       = 'none';
+  modal.style.visibility    = 'hidden';
+  modal.style.pointerEvents = 'none';
+
   let _pendingAction = null;
 
   function showModal(message, icon, okLabel, onConfirm) {
