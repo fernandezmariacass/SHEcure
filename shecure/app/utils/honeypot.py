@@ -549,10 +549,39 @@ for _path, _methods, _body, _ctype, _status, _flavour in _TRAPS:
     )
 
 
+# FIX: the original set had only 5 entries — far too small to catch real credential-
+# stuffing attempts. Expanded to the most-sprayed passwords from public breach dumps.
+# These are chosen because:
+#   (a) they appear in virtually every credential-stuffing wordlist in the wild, AND
+#   (b) no legitimate user of a security-focused app should ever use them.
+# This is intentionally NOT a full deny-list (validate_password_strength() + the
+# HaveIBeenPwned check cover the rest); it exists solely to catch drive-by attacks
+# so we can fire an alert and ban the IP immediately.
+_HONEYPOT_PASSWORD_SET = {
+    # top-10 all-time
+    "password", "123456", "12345678", "1234567890", "qwerty", "abc123",
+    "password1", "iloveyou", "admin", "letmein", "welcome", "monkey",
+    "dragon", "master", "sunshine", "princess", "shadow", "superman",
+    "michael", "football", "login", "passw0rd", "pass@123", "pass1234",
+    # "admin" variants — most sprayed against web panels
+    "admin123", "admin1234", "admin@123", "admin@2024", "admin@2025",
+    "administrator", "adminadmin",
+    # app-name variants (SHEcure-specific)
+    "shecure", "shecure2025", "shecure@2025", "shecure@2025!", "shecure2024",
+    # year + common suffix patterns
+    "password2024", "password2025", "password@2024", "password@2025",
+    # keyboard walks
+    "qwerty123", "qwerty1234", "qwertyuiop", "1q2w3e4r", "1qaz2wsx",
+    # classic short pins used as passwords
+    "123456789", "12345", "1234", "111111", "000000", "654321",
+    # common words
+    "test", "testing", "guest", "demo", "user", "root", "toor",
+    "honeypot", "changeme", "default", "blank",
+}
+
 def is_honeypot_password(password: str) -> bool:
     """Return True if the password matches a known honeypot credential."""
-    HONEYPOT_PASSWORDS = {"password", "123456", "admin", "test", "honeypot"}
-    return password.lower() in HONEYPOT_PASSWORDS
+    return password.lower() in _HONEYPOT_PASSWORD_SET
 
 
 # FIX: corrected signature — was (username, password) which caused a TypeError
