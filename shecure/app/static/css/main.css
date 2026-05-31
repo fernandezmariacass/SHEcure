@@ -1058,3 +1058,23 @@ input[type="checkbox"] {
   gap: .75rem;
   justify-content: center;
 }
+
+/* ── Admin panel layout ── */
+.admin-section { margin-bottom: 2rem; }
+.ip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 1rem;
+  padding: .6rem .75rem;
+  background: var(--gray-50);
+  border-radius: var(--r-sm);
+}
+.ip-row-left {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  min-width: 0;
+  overflow: hidden;
+}
