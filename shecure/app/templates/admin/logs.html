@@ -38,11 +38,7 @@
           <td class="text-mono" style="font-size:.78rem">
             <span data-utc="{{ log.timestamp.isoformat() }}">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</span>
           </td>
-          <td style="font-family:monospace;font-size:.75rem;color:var(--gray-400)">
-            {% if log.username_attempted %}
-            <span class="hash-toggle" data-full="{{ log.username_attempted }}" title="Click to reveal" style="cursor:pointer">••••••</span>
-            {% else %}—{% endif %}
-          </td>
+          <td style="font-family:monospace;font-size:.75rem;color:var(--gray-400);word-break:break-all">{{ log.username_attempted or '—' }}</td>
           <td class="text-mono" style="font-size:.82rem;word-break:break-all">{{ log.ip_address }}</td>
           <td>
             <span class="badge {% if log.status == 'success' %}badge-success{% elif log.status == 'blocked' %}badge-danger{% elif log.status == 'logout' %}badge-info{% else %}badge-warning{% endif %} badge-dot">
@@ -67,14 +63,4 @@
     </table>
   </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-document.querySelectorAll('.hash-toggle').forEach(function(el) {
-  el.addEventListener('click', function() {
-    this.textContent = this.textContent === '••••••' ? this.dataset.full : '••••••';
-  });
-});
-</script>
 {% endblock %}
