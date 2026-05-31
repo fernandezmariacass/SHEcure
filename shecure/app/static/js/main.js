@@ -134,14 +134,72 @@ document.querySelectorAll('.resolve-alert-btn').forEach(btn => {
   });
 });
 
-// ── Confirm delete ───────────────────────────
-document.querySelectorAll('[data-confirm]').forEach(btn => {
-  btn.addEventListener('click', function (e) {
-    if (!confirm(this.dataset.confirm)) {
-      e.preventDefault();
-    }
+// ── Custom confirm modal ─────────────────────
+// Handles both [data-confirm] buttons and forms with [data-confirm].
+// Falls back to the native dialog if the modal DOM isn't present (e.g. non-admin pages).
+(function () {
+  const modal   = document.getElementById('admin-confirm-modal');
+  const msgEl   = document.getElementById('admin-confirm-message');
+  const iconEl  = document.getElementById('admin-confirm-icon');
+  const okBtn   = document.getElementById('admin-confirm-ok');
+  const cancelBtn = document.getElementById('admin-confirm-cancel');
+
+  if (!modal) {
+    // No modal on this page — fall back to native confirm for data-confirm elements
+    document.querySelectorAll('[data-confirm]').forEach(el => {
+      el.addEventListener('click', function (e) {
+        if (!confirm(this.dataset.confirm)) e.preventDefault();
+      });
+    });
+    return;
+  }
+
+  let _pendingAction = null;
+
+  function showModal(message, icon, onConfirm) {
+    msgEl.textContent  = message;
+    iconEl.textContent = icon || '⚠️';
+    _pendingAction     = onConfirm;
+    modal.style.display = 'flex';
+  }
+
+  function hideModal() {
+    modal.style.display = 'none';
+    _pendingAction = null;
+  }
+
+  okBtn.addEventListener('click', () => {
+    const action = _pendingAction;
+    hideModal();
+    if (action) action();
   });
-});
+
+  cancelBtn.addEventListener('click', hideModal);
+
+  // Close on backdrop click
+  modal.addEventListener('click', e => { if (e.target === modal) hideModal(); });
+
+  // [data-confirm] on a <button type="submit"> inside a <form>
+  document.querySelectorAll('button[data-confirm]').forEach(btn => {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      const form = this.closest('form');
+      showModal(this.dataset.confirm, this.dataset.confirmIcon, () => {
+        if (form) form.submit();
+      });
+    });
+  });
+
+  // [data-confirm] on a <form> directly (submit intercept)
+  document.querySelectorAll('form[data-confirm]').forEach(form => {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      showModal(this.dataset.confirm, this.dataset.confirmIcon, () => {
+        this.submit();
+      });
+    });
+  });
+})();
 
 // ── Camera status (dashboard home only — camera page manages its own) ────────
 // Only run this lightweight check on pages that embed the status element
