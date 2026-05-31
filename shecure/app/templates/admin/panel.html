@@ -26,7 +26,7 @@
 </div>
 
 <!-- ① User Management -->
-<div class="card" style="margin-bottom:2rem">
+<div class="card" class="admin-section">
   <div class="card-header">
     <h2 class="card-title">۶ৎ User Management</h2>
   </div>
@@ -124,11 +124,11 @@
       </form>
       <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:1rem">
         {% for ip_entry in ips %}
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.6rem .75rem;background:var(--gray-50);border-radius:var(--r-sm);flex-wrap:nowrap">
-          <div style="display:flex;align-items:center;gap:.5rem;min-width:0">
-            <span class="ip-chip" style="white-space:nowrap">{{ ip_entry.ip_address }}</span>
+        <div class="ip-row">
+          <div class="ip-row-left">
+            <span class="ip-chip">{{ ip_entry.ip_address }}</span>
             {% if ip_entry.label %}
-              <small class="text-muted" style="white-space:nowrap">{{ ip_entry.label }}</small>
+              <small class="text-muted">{{ ip_entry.label }}</small>
             {% endif %}
           </div>
           <form method="POST" action="{{ url_for('admin.delete_ip', ip_id=ip_entry.id) }}" style="display:inline;flex-shrink:0">
@@ -172,7 +172,7 @@
 </div>
 
 <!-- ③ Honeypot Blocked IPs -->
-<div class="card" style="margin-bottom:2rem">
+<div class="card" class="admin-section">
   <div class="card-header" style="display:flex;align-items:center;gap:.75rem">
     <h2 class="card-title" style="margin:0">🚫 Honeypot Blocked IPs</h2>
     <small class="text-muted">Auto-banned for 24 h after triggering a fake route trap</small>
@@ -249,7 +249,7 @@
 </div>
 
 <!-- ④ LAN Devices -->
-<div class="card" style="margin-bottom:2rem">
+<div class="card" class="admin-section">
   <div class="card-header" style="display:flex;align-items:center;gap:.75rem">
     <h2 class="card-title" style="margin:0">🖧 LAN Devices</h2>
     <small class="text-muted">Discovered by the local agent via nmap — updates every 60 s</small>
