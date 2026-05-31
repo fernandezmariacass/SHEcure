@@ -59,7 +59,7 @@
           </td>
           <td style="padding:1.1rem 1.2rem">
             {% if user.role == 'member' %}
-            <div style="display:flex;flex-direction:column;gap:.5rem;align-items:flex-start">
+            <div class="btn-group-col">
               {% if not user.is_approved %}
               <form method="POST" action="{{ url_for('admin.approve_user', user_id=user.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -150,7 +150,7 @@
     <div class="card-header">
       <h2 class="card-title">୭ Quick Links</h2>
     </div>
-    <div class="card-body" style="display:flex;flex-direction:column;gap:.75rem">
+    <div class="card-body quick-links">
       <a href="{{ url_for('admin.logs') }}" class="btn btn-outline btn-sm">𓇼 View Access Logs</a>
       <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm">⟡ View Alerts</a>
       <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline btn-sm">♡︎ Activity Log</a>
