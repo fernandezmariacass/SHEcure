@@ -5,6 +5,24 @@
 {% block content %}
 <div class="pink-line"></div>
 
+<!-- ── Custom confirm modal (replaces all native window.confirm() calls) ──── -->
+<div id="admin-confirm-modal" style="
+  display:none;position:fixed;inset:0;z-index:9999;
+  background:rgba(0,0,0,.55);backdrop-filter:blur(3px);
+  align-items:center;justify-content:center;">
+  <div style="
+    background:var(--surface,#1e1e2e);border:1px solid var(--border,#e91e8c33);
+    border-radius:12px;padding:1.75rem 2rem;max-width:400px;width:90%;
+    box-shadow:0 8px 32px rgba(0,0,0,.35);text-align:center;">
+    <div id="admin-confirm-icon" style="font-size:2rem;margin-bottom:.6rem">⚠️</div>
+    <p id="admin-confirm-message" style="font-size:.95rem;color:var(--gray-200,#e5e7eb);line-height:1.55;margin-bottom:1.5rem"></p>
+    <div style="display:flex;gap:.75rem;justify-content:center">
+      <button id="admin-confirm-ok"     class="btn btn-danger"   style="min-width:110px">Confirm</button>
+      <button id="admin-confirm-cancel" class="btn btn-outline"  style="min-width:110px">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Stats row -->
 <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:2rem">
   <div class="stat-card">
@@ -87,14 +105,15 @@
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-ghost btn-sm"
                     title="Send user a 2FA reset confirmation email"
-                    onclick="return confirm('Send 2FA reset email to {{ user.username }}?')">
+                    data-confirm="Send 2FA reset email to {{ user.username }}?"
+                    data-confirm-icon="🔐">
                     🔐 Reset 2FA
                   </button>
                 </form>
                 {% endif %}
 
                 <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}"
-                      onsubmit="return confirm('Permanently delete {{ user.username }}? This cannot be undone.')">
+                      data-confirm="Permanently delete {{ user.username }}? This cannot be undone." data-confirm-icon="🗑">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button type="submit" class="btn btn-danger btn-sm"
                     title="Permanently remove this user">
@@ -179,7 +198,7 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-outline btn-sm">✉ Test Email</button>
         </form>
-        <form method="POST" action="{{ url_for('admin.purge_logs') }}" style="display:inline" onsubmit="return confirm('Purge logs older than 90 days?')">
+        <form method="POST" action="{{ url_for('admin.purge_logs') }}" style="display:inline" data-confirm="Purge logs older than 90 days?" data-confirm-icon="🗑">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-outline btn-sm" style="color:#c0392b;border-color:#c0392b">🗑 Purge Old Logs</button>
         </form>
@@ -221,7 +240,7 @@
         </div>
         <div style="display:flex;align-items:flex-end">
           <button type="submit" class="btn btn-outline btn-sm"
-                  onclick="return confirm('Unblock this IP now? They will regain access immediately.')">
+                  data-confirm="Unblock this IP now? They will regain access immediately." data-confirm-icon="✓">
             ✓ Unblock IP
           </button>
         </div>
