@@ -202,6 +202,12 @@ def log_activity(description=None, suspicious=False, action=None, username=None,
         # Use explicitly passed values first, fallback to current_user
         uid = user_id if user_id is not None else (current_user.id if current_user.is_authenticated else None)
         uname = username if username is not None else (current_user.username if current_user.is_authenticated else None)
+        if uname and uname not in ("unknown", ""):
+            try:
+                from app.utils.username_enc import hash_username
+                uname = hash_username(uname)
+            except Exception:
+                pass
         path = request.path
         method = request.method
         resolved_action = action or _get_action_label(method, path)
