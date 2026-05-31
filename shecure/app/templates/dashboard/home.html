@@ -96,9 +96,18 @@
   </div>
   <div class="card-body">
     <div class="camera-container" style="max-height:320px">
-      <img src="{{ url_for('camera.stream') }}" class="camera-feed"
+      <!-- FIX: src is intentionally empty — JS attaches it only when the camera
+           is confirmed online, avoiding a persistent MJPEG connection on every
+           dashboard load when the feed is offline. -->
+      <img src="" class="camera-feed"
         alt="Live camera feed" id="dashboard-cam"
-        onerror="this.parentElement.innerHTML=offlineHTML()" />
+        style="display:none" />
+      <div id="dashboard-cam-offline" style="
+          display:flex;align-items:center;justify-content:center;
+          min-height:180px;background:#111;border-radius:8px;
+          color:rgba(255,255,255,.4);font-size:.9rem;gap:.5rem">
+        <span aria-hidden="true">⏾</span> Waiting for broadcaster…
+      </div>
       <div class="camera-overlay" aria-hidden="true">
         <div class="camera-corner camera-corner-tl"></div>
         <div class="camera-corner camera-corner-tr"></div>
@@ -107,7 +116,7 @@
         <div class="camera-status-bar">
           <div class="camera-live-dot">
             <div class="live-indicator"></div>
-            <span id="camera-status-text">LIVE</span>
+            <span id="camera-status-text">CHECKING</span>
           </div>
         </div>
       </div>
@@ -123,13 +132,48 @@ function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function offlineHTML() {
-  return `<div class="camera-offline-overlay" role="img" aria-label="Camera offline">
-    <div class="camera-offline-icon" aria-hidden="true"></div>
-    <p>Camera unavailable</p>
-    <small>Check CAMERA_SOURCE in environment settings</small>
-  </div>`;
-}
+// ── Camera preview — lazy-load stream only when online ───────────────────────
+// Polls /camera/status first; attaches the MJPEG src only when the feed is live
+// so we don't hold an open HTTP connection when the camera is offline.
+(function () {
+  const STREAM_URL = "{{ url_for('camera.stream') }}";
+  const STATUS_URL = "{{ url_for('camera.status') }}";
+  const img        = document.getElementById('dashboard-cam');
+  const offline    = document.getElementById('dashboard-cam-offline');
+  const statusText = document.getElementById('camera-status-text');
+  let   isAttached = false;
+
+  function checkCameraStatus() {
+    fetch(STATUS_URL)
+      .then(r => r.json())
+      .then(data => {
+        if (data.online) {
+          if (statusText) statusText.textContent = 'LIVE';
+          if (!isAttached && img) {
+            img.src = STREAM_URL + '?' + Date.now();
+            img.style.display = '';
+            if (offline) offline.style.display = 'none';
+            isAttached = true;
+          }
+        } else {
+          if (statusText) statusText.textContent = 'WAITING';
+          if (isAttached && img) {
+            // Detach stream to free the connection
+            img.src = '';
+            img.style.display = 'none';
+            if (offline) offline.style.display = 'flex';
+            isAttached = false;
+          }
+        }
+      })
+      .catch(() => {
+        if (statusText) statusText.textContent = 'UNKNOWN';
+      });
+  }
+
+  checkCameraStatus();
+  setInterval(checkCameraStatus, 5000);
+})();
 
 // ── Load all-time stats (not just last 20) ───────────────────────────────────
 function loadStats() {
