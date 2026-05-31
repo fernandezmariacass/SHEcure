@@ -1,3 +1,8 @@
+/* =============================================
+   SHEcure — Main Stylesheet
+   Pink-powered security dashboard
+   ============================================= */
+
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
 :root {
@@ -1104,4 +1109,11 @@ input[type="checkbox"] {
 .ip-form .form-control {
   flex: 1;
   min-width: 120px;
+}
+
+/* ── Unblock form ── */
+.unblock-form {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--gray-200);
 }
