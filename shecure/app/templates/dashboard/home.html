@@ -88,9 +88,8 @@
   </div>
 
 </div>
-{% endif %}
 
-<!-- Camera preview -->
+<!-- Camera preview (non-members) -->
 <div class="card mt-3" role="region" aria-label="Camera feed preview">
   <div class="card-header">
     <h2 class="card-title">📷 Camera Preview</h2>
@@ -98,9 +97,6 @@
   </div>
   <div class="card-body">
     <div class="camera-container" style="max-height:320px">
-      <!-- FIX: src is intentionally empty — JS attaches it only when the camera
-           is confirmed online, avoiding a persistent MJPEG connection on every
-           dashboard load when the feed is offline. -->
       <img src="" class="camera-feed"
         alt="Live camera feed" id="dashboard-cam"
         style="display:none" />
@@ -125,18 +121,83 @@
     </div>
   </div>
 </div>
+
+{% else %}
+
+<!-- Full Live Stream for members -->
+<div class="card" style="max-width:1100px;margin:0 auto" role="region" aria-label="Live camera feed">
+  <div class="card-header">
+    <h2 class="card-title">Live Stream</h2>
+    <span class="badge badge-pink" id="stream-status">Connecting…</span>
+  </div>
+  <div class="card-body" style="padding:0">
+    <div class="camera-container" style="border:none;border-radius:0">
+      <img src="{{ url_for('camera.stream') }}"
+           class="camera-feed"
+           alt="Live camera feed"
+           id="camera-img"
+           style="width:100%;height:auto;display:block" />
+      <div class="camera-overlay" aria-hidden="true">
+        <div class="camera-corner camera-corner-tl"></div>
+        <div class="camera-corner camera-corner-tr"></div>
+        <div class="camera-corner camera-corner-bl"></div>
+        <div class="camera-corner camera-corner-br"></div>
+        <div class="camera-status-bar">
+          <div class="camera-live-dot">
+            <div class="live-indicator"></div>
+            <span id="camera-status-text">WAITING</span>
+          </div>
+          <span style="color:rgba(255,255,255,.7);font-size:.75rem;font-family:var(--font-mono)">
+            Broadcaster: {{ broadcaster_username if broadcaster_username is defined else 'admin' }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script nonce="{{ csp_nonce }}">
-// ── XSS sanitizer — escapes all user-controlled data before innerHTML ─────────
+// ── XSS sanitizer ─────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Camera preview — lazy-load stream only when online ───────────────────────
-// Polls /camera/status first; attaches the MJPEG src only when the feed is live
-// so we don't hold an open HTTP connection when the camera is offline.
+{% if current_user.role == 'member' %}
+// ── Full stream status polling for members ────────────────────────────────────
+let wasOffline = true;
+
+function pollStatus() {
+  fetch('{{ url_for("camera.status") }}')
+    .then(r => r.json())
+    .then(d => {
+      const streamStatus = document.getElementById('stream-status');
+      const statusText   = document.getElementById('camera-status-text');
+      if (d.online) {
+        if (streamStatus) { streamStatus.className='badge badge-success'; streamStatus.textContent='Live'; }
+        if (statusText)   statusText.textContent = 'LIVE';
+        if (wasOffline) {
+          let streamImg = document.getElementById('camera-img');
+          if (streamImg) {
+            streamImg.src = '{{ url_for("camera.stream") }}?' + Date.now();
+          }
+        }
+        wasOffline = false;
+      } else {
+        if (streamStatus) { streamStatus.className='badge badge-warning'; streamStatus.textContent='Waiting for broadcaster…'; }
+        if (statusText)   statusText.textContent = 'WAITING';
+        wasOffline = true;
+      }
+    }).catch(() => {});
+}
+pollStatus();
+setInterval(pollStatus, 2000);
+
+{% else %}
+// ── Camera preview for non-members ───────────────────────────────────────────
 (function () {
   const STREAM_URL = "{{ url_for('camera.stream') }}";
   const STATUS_URL = "{{ url_for('camera.status') }}";
@@ -160,7 +221,6 @@ function esc(s) {
         } else {
           if (statusText) statusText.textContent = 'WAITING';
           if (isAttached && img) {
-            // Detach stream to free the connection
             img.src = '';
             img.style.display = 'none';
             if (offline) offline.style.display = 'flex';
@@ -177,8 +237,7 @@ function esc(s) {
   setInterval(checkCameraStatus, 5000);
 })();
 
-{% if current_user.role != 'member' %}
-// ── Load all-time stats (not just last 20) ───────────────────────────────────
+// ── Load all-time stats ───────────────────────────────────────────────────────
 function loadStats() {
   fetch('/api/access/stats')
     .then(r => r.json())
@@ -221,7 +280,6 @@ function loadActivityFeed() {
     fetch('/api/activity/recent').then(r => r.json()).catch(() => []),
   ]).then(([accessLogs, activityLogs]) => {
     const rows = [];
-
     accessLogs.forEach(log => {
       rows.push({
         ip: log.ip || '—',
@@ -235,7 +293,6 @@ function loadActivityFeed() {
         time: log.timestamp || '',
       });
     });
-
     activityLogs.forEach(log => {
       rows.push({
         ip: log.ip || '—',
@@ -245,17 +302,13 @@ function loadActivityFeed() {
         time: log.timestamp || '',
       });
     });
-
-    // Sort newest first
     rows.sort((a, b) => {
       const ta = a.time ? new Date(a.time.replace(' PST', '')) : 0;
       const tb = b.time ? new Date(b.time.replace(' PST', '')) : 0;
       return tb - ta;
     });
-
     const feed = document.getElementById('live-activity-feed');
     if (!feed) return;
-
     const newHTML = !rows.length
       ? `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No activity yet</td></tr>`
       : rows.slice(0, 10).map(row => `
@@ -265,15 +318,9 @@ function loadActivityFeed() {
             <td><span class="badge ${esc(row.badgeClass)}" style="font-size:.72rem;white-space:nowrap">${esc(row.action)}</span></td>
             <td class="text-muted" style="font-size:.75rem;white-space:nowrap">${esc(row.time).replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
           </tr>`).join('');
-
-    // Only update DOM if content actually changed — prevents flash on re-render
-    if (feed.innerHTML !== newHTML) {
-      feed.innerHTML = newHTML;
-    }
+    if (feed.innerHTML !== newHTML) feed.innerHTML = newHTML;
   });
 }
-
-// Load immediately then refresh every 8 seconds
 loadActivityFeed();
 setInterval(loadActivityFeed, 8000);
 setInterval(loadStats, 30000);
