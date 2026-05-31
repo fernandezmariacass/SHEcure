@@ -29,6 +29,7 @@
       <a href="{{ url_for('dashboard.home') }}" class="sidebar-nav-item" aria-label="Dashboard home">
         <span class="sidebar-nav-icon" aria-hidden="true">❤︎</span> Dashboard
       </a>
+      {% if current_user.role != 'member' %}
       <a href="{{ url_for('camera.feed_page') }}" class="sidebar-nav-item" aria-label="Camera monitoring">
         <span class="sidebar-nav-icon" aria-hidden="true">☆</span> Camera Feed
       </a>
@@ -40,6 +41,7 @@
         <span class="sidebar-badge" id="alert-count-badge" aria-label="Unresolved alerts"
           style="display:none">0</span>
       </a>
+      {% endif %}
     </div>
 
     {% if current_user.role == 'admin' %}
@@ -83,6 +85,7 @@
       <h1 class="topbar-title">{% block page_title %}{% endblock %}</h1>
 
       <div class="topbar-actions">
+        {% if current_user.role != 'member' %}
         <a href="{{ url_for('dashboard.alerts') }}" aria-label="View security alerts">
           <button class="alert-bell" aria-label="Alerts">
             ❀
@@ -90,6 +93,7 @@
               aria-label="You have unresolved alerts"></span>
           </button>
         </a>
+        {% endif %}
         <a href="{{ url_for('auth.logout') }}" class="btn btn-outline btn-sm">Log out</a>
       </div>
     </header>
