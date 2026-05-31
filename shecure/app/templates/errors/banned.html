@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Access Denied | SHEcure</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style nonce="{{ csp_nonce }}">
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #fff0f7;
+      font-family: 'DM Sans', sans-serif;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    .shell {
+      position: relative;
+      width: min(480px, calc(100vw - 2rem));
+      text-align: center;
+      padding: 2.5rem 2rem;
+      background: #ffffff;
+      border: 1.5px solid #ffadd7;
+      border-radius: 20px;
+      box-shadow: 0 12px 40px rgba(233,30,140,.18), 0 4px 16px rgba(0,0,0,.08);
+      animation: appear 0.25s cubic-bezier(.34,1.56,.64,1) both;
+      overflow: hidden;
+    }
+    .shell::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 90% 10%, rgba(233,30,140,.05) 0%, transparent 60%),
+        radial-gradient(circle at 10% 90%, rgba(233,30,140,.04) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    @keyframes appear {
+      from { opacity: 0; transform: translateY(14px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)   scale(1);    }
+    }
+    .glyph { font-size: 3rem; line-height: 1; margin-bottom: 0.75rem; filter: drop-shadow(0 2px 8px rgba(233,30,140,.25)); }
+    .code {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 5rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #e91e8c;
+      text-shadow: 0 0 28px rgba(233,30,140,.3);
+      letter-spacing: -2px;
+    }
+    .label {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: #9c1261;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin: 0.4rem 0 1.4rem;
+    }
+    .msg { font-size: 0.9rem; color: #4b5563; line-height: 1.7; margin-bottom: 1.25rem; }
+    .ip-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 1.1rem;
+      background: #fff0f7;
+      border: 1.5px solid #ffadd7;
+      border-radius: 9999px;
+      font-family: 'DM Mono', 'Courier New', monospace;
+      font-size: 0.85rem;
+      color: #9c1261;
+      letter-spacing: 0.05em;
+      margin-bottom: 1.5rem;
+    }
+    .ip-badge::before { content: '⟡'; font-size: 0.8rem; color: #f754a8; }
+    .warn-box {
+      padding: 0.75rem 1rem;
+      background: #fce4f0;
+      border: 1px solid #ffadd7;
+      border-radius: 12px;
+      color: #9c1261;
+      font-size: 0.83rem;
+      line-height: 1.5;
+    }
+    .footer {
+      margin-top: 1.75rem;
+      padding-top: 1rem;
+      border-top: 1px solid #ffd6ec;
+      font-family: 'DM Mono', 'Courier New', monospace;
+      font-size: 0.75rem;
+      color: #c084a0;
+      letter-spacing: 0.05em;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell" role="main">
+    <div class="glyph" aria-hidden="true">🚫</div>
+    <div class="code" aria-label="Error 403">403</div>
+    <div class="label">Access Denied</div>
+    <p class="msg">
+      This request has been logged and your IP has been flagged.<br>
+      Further probing may result in permanent restriction.
+    </p>
+    {% if client_ip %}
+    <div class="ip-badge" aria-label="Your IP address: {{ client_ip }}">{{ client_ip }}</div>
+    {% endif %}
+    <div class="warn-box" role="alert">
+      ⚠︎&nbsp; This incident has been reported to the system administrator.
+      Further requests from this IP continue to be recorded.
+    </div>
+    <div class="footer">// .☘︎ &#x035D;&#x02D6; shecure &mdash; no access from this address //</div>
+  </div>
+</body>
+</html>
