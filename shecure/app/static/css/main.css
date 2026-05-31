@@ -1,8 +1,3 @@
-/* =============================================
-   SHEcure — Main Stylesheet
-   Pink-powered security dashboard
-   ============================================= */
-
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
 :root {
@@ -1022,4 +1017,44 @@ input[type="checkbox"] {
   color: rgba(255,255,255,.7);
   font-size: .72rem;
   font-family: var(--font-mono);
+}
+
+
+/* ── Confirm popup ── */
+#admin-confirm-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: rgba(61, 8, 38, 0.6);
+  backdrop-filter: blur(4px);
+  align-items: center;
+  justify-content: center;
+}
+#admin-confirm-modal.is-open { display: flex; }
+
+#admin-confirm-modal .confirm-box {
+  background: var(--white);
+  border-radius: var(--r-lg);
+  padding: 2rem;
+  max-width: 420px;
+  width: 90%;
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  border-top: 4px solid var(--pink-500);
+}
+#admin-confirm-modal .confirm-icon {
+  font-size: 2.2rem;
+  margin-bottom: .5rem;
+}
+#admin-confirm-modal .confirm-message {
+  font-size: .95rem;
+  color: var(--gray-700);
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+#admin-confirm-modal .confirm-actions {
+  display: flex;
+  gap: .75rem;
+  justify-content: center;
 }
