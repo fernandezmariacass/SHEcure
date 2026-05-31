@@ -175,7 +175,7 @@ def create_app():
 
 
 def _auto_migrate():
-    """Add any missing columns and tables that newer code expects but older DBs lack."""
+    """Add any missing columns, tables, and DB-level constraints that newer code expects."""
     import logging
     log = logging.getLogger(__name__)
 
@@ -198,6 +198,37 @@ def _auto_migrate():
             "lookup_key VARCHAR(80) UNIQUE NOT NULL, "
             "used_at TIMESTAMP NOT NULL DEFAULT NOW())"
         ),
+        # ── Admin limit DB trigger ────────────────────────────────────────────
+        # This enforces the 5-admin cap at the PostgreSQL level, so it fires
+        # even when the database is edited directly (e.g. via the Railway
+        # dashboard), bypassing the SQLAlchemy ORM event listeners in user.py.
+        db.text("""
+            CREATE OR REPLACE FUNCTION enforce_admin_limit()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                IF NEW.role = 'admin' THEN
+                    IF (
+                        SELECT COUNT(*)
+                        FROM users
+                        WHERE role = 'admin'
+                          AND id != COALESCE(NEW.id, -1)
+                    ) >= 5 THEN
+                        RAISE EXCEPTION
+                            'Admin limit of 5 has been reached. Cannot add or promote another admin.';
+                    END IF;
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        """),
+        db.text("""
+            DROP TRIGGER IF EXISTS trg_enforce_admin_limit ON users;
+        """),
+        db.text("""
+            CREATE TRIGGER trg_enforce_admin_limit
+                BEFORE INSERT OR UPDATE ON users
+                FOR EACH ROW EXECUTE FUNCTION enforce_admin_limit();
+        """),
     ]
     with db.engine.connect() as conn:
         for sql in migrations:
