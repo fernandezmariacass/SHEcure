@@ -209,6 +209,18 @@ def status():
     return jsonify({"online": online})
 
 
+@camera_bp.route("/broadcaster-status")
+@login_required
+def broadcaster_status():
+    """
+    Lets the broadcaster's browser poll whether their own IP is still
+    in the allow-list.  Returns {"authorized": bool} so the client can
+    warn them before the stream is forcibly cut.
+    """
+    authorized = _check_broadcaster_session()
+    return jsonify({"authorized": authorized})
+
+
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 import json as _json
