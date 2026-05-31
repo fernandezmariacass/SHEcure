@@ -114,12 +114,12 @@
     <div class="card-body">
       <form method="POST" action="{{ url_for('admin.add_ip') }}" aria-label="Add IP to allow-list">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+        <div class="ip-form">
           <input class="form-control" type="text" name="ip_address"
-            placeholder="e.g. 192.168.1.100" required style="flex:2;min-width:150px" />
+            placeholder="e.g. 192.168.1.100" required />
           <input class="form-control" type="text" name="label"
-            placeholder="Label (optional)" style="flex:2;min-width:120px" />
-          <button type="submit" class="btn btn-primary btn-sm" style="flex:1;min-width:80px">+ Add</button>
+            placeholder="Label (optional)" />
+          <button type="submit" class="btn btn-primary btn-sm">+ Add</button>
         </div>
       </form>
       <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:1rem">
