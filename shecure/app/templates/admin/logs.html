@@ -38,7 +38,7 @@
           <td class="text-mono" style="font-size:.78rem">
             <span data-utc="{{ log.timestamp.isoformat() }}">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</span>
           </td>
-          <td title="{{ log.username_attempted or '—' }}" style="font-family:monospace;font-size:.78rem;color:var(--gray-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ log.username_attempted or '—' }}</td>
+          <td title="{{ log.username_attempted or '—' }}" style="font-family:monospace;font-size:.78rem;color:var(--gray-400);word-break:break-all">{{ log.username_attempted or '—' }}</td>
           <td class="text-mono" style="font-size:.85rem">{{ log.ip_address }}</td>
           <td>
             <span class="badge {% if log.status == 'success' %}badge-success{% elif log.status == 'blocked' %}badge-danger{% elif log.status == 'logout' %}badge-info{% else %}badge-warning{% endif %} badge-dot">
