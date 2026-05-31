@@ -1112,3 +1112,9 @@ input[type="checkbox"] {
   padding-bottom: 1.5rem;
   border-bottom: 1px solid var(--gray-200);
 }
+
+/* ── Quick links full width ── */
+.quick-link-form { display: block; width: 100%; }
+.quick-link-btn  { width: 100%; }
+.quick-links a.btn { width: 100%; text-align: center; box-sizing: border-box; }
+.purge-btn { color: #c0392b !important; border-color: #c0392b !important; }
