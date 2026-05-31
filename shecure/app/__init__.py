@@ -163,7 +163,7 @@ def create_app():
             "https://www.google.com https://www.gstatic.com; "
             # FIX: removed 'unsafe-inline' — use the per-request nonce for any
             # inline styles that are truly needed, or move them to .css files.
-            f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com https://fonts.gstatic.com; "
+            f"style-src 'self' 'unsafe-inline' 'nonce-{nonce}' https://fonts.googleapis.com https://fonts.gstatic.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: blob:; "
             "frame-src https://www.google.com; "
