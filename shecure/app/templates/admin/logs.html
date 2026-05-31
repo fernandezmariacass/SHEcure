@@ -10,7 +10,16 @@
     <span class="badge badge-gray">{{ logs|length }} records</span>
   </div>
   <div class="table-wrapper">
-    <table aria-label="Access log table">
+    <table aria-label="Access log table" style="width:100%;table-layout:fixed">
+      <colgroup>
+        <col style="width:6%">
+        <col style="width:16%">
+        <col style="width:32%">
+        <col style="width:16%">
+        <col style="width:12%">
+        <col style="width:10%">
+        <col style="width:8%">
+      </colgroup>
       <thead>
         <tr>
           <th scope="col">ID</th>
@@ -19,7 +28,7 @@
           <th scope="col">IP Address</th>
           <th scope="col">Status</th>
           <th scope="col">Reason</th>
-          <th scope="col">Unauthorized</th>
+          <th scope="col">Unauth</th>
         </tr>
       </thead>
       <tbody>
@@ -29,14 +38,14 @@
           <td class="text-mono" style="font-size:.78rem">
             <span data-utc="{{ log.timestamp.isoformat() }}">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</span>
           </td>
-          <td title="Usernames are stored as HMAC hashes for privacy — the hash cannot be reversed" style="font-family:monospace;font-size:.78rem;color:var(--gray-400)">{{ log.username_attempted or '—' }}</td>
-          <td class="text-mono">{{ log.ip_address }}</td>
+          <td title="{{ log.username_attempted or '—' }}" style="font-family:monospace;font-size:.78rem;color:var(--gray-400);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ log.username_attempted or '—' }}</td>
+          <td class="text-mono" style="font-size:.85rem">{{ log.ip_address }}</td>
           <td>
             <span class="badge {% if log.status == 'success' %}badge-success{% elif log.status == 'blocked' %}badge-danger{% elif log.status == 'logout' %}badge-info{% else %}badge-warning{% endif %} badge-dot">
               {{ log.status }}
             </span>
           </td>
-          <td class="text-muted" style="font-size:.82rem">{{ log.reason or '—' }}</td>
+          <td class="text-muted" style="font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ log.reason or '—' }}</td>
           <td>
             {% if log.is_unauthorized %}
               <span class="badge badge-danger" aria-label="Unauthorized">Yes</span>
