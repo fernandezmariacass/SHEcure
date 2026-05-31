@@ -1117,3 +1117,12 @@ input[type="checkbox"] {
 .quick-link-form { display: block; width: 100%; }
 .quick-link-btn  { width: 100%; }
 .quick-links a.btn { width: 100%; text-align: center; box-sizing: border-box; }
+
+.logs-table {
+  width: 100%;
+  table-layout: fixed;
+}
+.logs-table td, .logs-table th {
+  word-break: break-all;
+  overflow-wrap: break-word;
+}
