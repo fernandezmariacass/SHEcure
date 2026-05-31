@@ -162,10 +162,20 @@ def _ai_threat_score(ip, endpoint, method, user_agent, combined_payload):
 def log_access(username_attempted, status, reason=None, user_id=None):
     from app import db
     from app.models.logs import AccessLog
+    # FIX: store an HMAC hash of the attempted username rather than the plaintext,
+    # so access logs don't become a second source of PII plaintext in the DB.
+    # The hash is keyed with USERNAME_HMAC_KEY so it can't be reversed without the key.
+    hashed_username = username_attempted
+    if username_attempted and username_attempted not in ("unknown", ""):
+        try:
+            from app.utils.username_enc import hash_username
+            hashed_username = hash_username(username_attempted)
+        except Exception:
+            hashed_username = username_attempted  # fallback: store as-is
     ip = _get_real_ip()
     entry = AccessLog(
         user_id=user_id,
-        username_attempted=username_attempted,
+        username_attempted=hashed_username,
         ip_address=ip,
         user_agent=request.user_agent.string[:512],
         status=status,
