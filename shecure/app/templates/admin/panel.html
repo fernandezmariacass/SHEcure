@@ -179,22 +179,14 @@
   </div>
   <div class="card-body">
     <form method="POST" action="{{ url_for('admin.unblock_by_ip_string') }}"
-          aria-label="Unblock IP by address"
-          style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--gray-200)">
+          aria-label="Unblock IP by address" class="ip-form unblock-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div style="flex:1;min-width:220px">
-        <label for="unblock-ip-input" style="display:block;font-size:.8rem;color:var(--gray-500);margin-bottom:.3rem">
-          Unblock a specific IP instantly
-        </label>
-        <input id="unblock-ip-input" class="form-control" type="text" name="ip_address"
-               placeholder="e.g. 203.0.113.42" style="width:100%" />
-      </div>
-      <div style="display:flex;align-items:flex-end">
-        <button type="submit" class="btn btn-outline btn-sm"
-                data-confirm="Unblock this IP now? They will regain access immediately." data-confirm-icon="✓" data-confirm-ok="Unblock">
-          ✓ Unblock IP
-        </button>
-      </div>
+      <input id="unblock-ip-input" class="form-control" type="text" name="ip_address"
+             placeholder="e.g. 203.0.113.42" />
+      <button type="submit" class="btn btn-outline btn-sm"
+              data-confirm="Unblock this IP now? They will regain access immediately." data-confirm-icon="✓" data-confirm-ok="Unblock">
+        ✓ Unblock IP
+      </button>
     </form>
     {% if blocked %}
     <div style="overflow-x:auto">
