@@ -2,14 +2,35 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from app import db, limiter
 from app.models.user import User, AllowedIP
-from app.models.logs import AccessLog, ActivityLog, UnauthorizedAlert, NetworkDevice
-from app.utils.security import admin_required
+from app.models.logs import AccessLog, ActivityLog, UnauthorizedAlert, NetworkDevice, AdminAuditLog
+from app.utils.security import admin_required, _get_real_ip
 from app.utils.email_utils import send_2fa_reset_email
 from app.models.logs import now_pst
 import secrets
 from datetime import timedelta
 
 admin_bp = Blueprint("admin", __name__)
+
+
+def _audit(action, target_user=None, detail=""):
+    """Write a tamper-evident AdminAuditLog entry for every destructive admin action."""
+    try:
+        entry = AdminAuditLog(
+            actor_id=current_user.id,
+            actor_username=current_user.username,
+            action=action,
+            target_id=target_user.id if target_user else None,
+            target_username=target_user.username if target_user else None,
+            ip_address=_get_real_ip(),
+            user_agent=request.user_agent.string[:512],
+            detail=detail[:500],
+        )
+        db.session.add(entry)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        import logging
+        logging.getLogger(__name__).error("[audit] failed to write audit log: %s", e)
 
 
 @admin_bp.route("/")
@@ -46,6 +67,7 @@ def approve_user(user_id):
     if not user.totp_enabled:
         user.require_2fa_setup = True
     db.session.commit()
+    _audit("approve_user", target_user=user, detail=f"Account approved; 2FA setup required: {not user.totp_enabled}")
     flash(f"{user.username} approved.", "success")
     return redirect(url_for("admin.panel"))
 
@@ -64,6 +86,7 @@ def revoke_user(user_id):
         return redirect(url_for("admin.panel"))
     user.is_approved = False
     db.session.commit()
+    _audit("revoke_user", target_user=user, detail="Account access revoked")
     flash(f"{user.username} access revoked.", "warning")
     return redirect(url_for("admin.panel"))
 
@@ -83,6 +106,7 @@ def unlock_user(user_id):
         AccessLog.status == "failed",
     ).delete()
     db.session.commit()
+    _audit("unlock_user", target_user=user, detail="Failed login lockout cleared")
     flash(f"{user.username}'s lockout cleared — they can now log in.", "success")
     return redirect(url_for("admin.panel"))
 
@@ -103,6 +127,7 @@ def delete_user(user_id):
         AllowedIP.query.filter_by(added_by=user.id).update({"added_by": None})
         AccessLog.query.filter_by(user_id=user.id).delete()
         ActivityLog.query.filter_by(user_id=user.id).delete()
+        _audit("delete_user", target_user=user, detail=f"User account permanently deleted (email: {user.email})")
         db.session.delete(user)
         db.session.commit()
         flash("User deleted.", "danger")
@@ -133,6 +158,7 @@ def reset_2fa(user_id):
             timestamp=now_pst().strftime("%Y-%m-%d %H:%M:%S"),
             confirm_url=confirm_url,
         )
+        _audit("reset_2fa", target_user=user, detail="2FA reset confirmation email sent")
         flash(f"A confirmation email has been sent to {user.username}.", "info")
     except Exception:
         flash(f"Could not send email to {user.username}. Check mail settings.", "danger")
@@ -148,6 +174,7 @@ def require_2fa(user_id):
     user = User.query.get_or_404(user_id)
     user.require_2fa_setup = True
     db.session.commit()
+    _audit("require_2fa", target_user=user, detail="Admin flagged user to set up 2FA on next login")
     flash(f"{user.username} will be prompted to set up 2FA on their next login.", "info")
     return redirect(url_for("admin.panel"))
 
@@ -169,6 +196,7 @@ def add_ip():
     entry = AllowedIP(ip_address=ip, label=label, added_by=current_user.id)
     db.session.add(entry)
     db.session.commit()
+    _audit("add_ip", detail=f"IP {ip} added to allow-list (label: {label or 'none'})")
     flash(f"IP {ip} added to allow-list.", "success")
     return redirect(url_for("admin.panel"))
 
@@ -179,6 +207,7 @@ def add_ip():
 @limiter.limit("30 per minute")
 def delete_ip(ip_id):
     entry = AllowedIP.query.get_or_404(ip_id)
+    _audit("delete_ip", detail=f"IP {entry.ip_address} removed from allow-list (label: {entry.label or 'none'})")
     db.session.delete(entry)
     db.session.commit()
     flash("IP removed from allow-list.", "info")
@@ -280,6 +309,7 @@ def unblock_ip_route(block_id):
     entry = BlockedIP.query.get_or_404(block_id)
     entry.is_active = False
     db.session.commit()
+    _audit("unblock_ip", detail=f"IP {entry.ip_address} manually unblocked by admin")
     flash(f"IP {entry.ip_address} has been unblocked.", "success")
     return redirect(url_for("admin.panel"))
 
@@ -303,6 +333,7 @@ def unblock_by_ip_string():
         entry.is_active = False
         db.session.commit()
         _INMEMORY_BANNED_IPS.discard(ip)
+        _audit("unblock_ip", detail=f"IP {ip} unblocked by string lookup (DB + in-memory)")
         flash(
             f"✓ IP {ip} has been unblocked. "
             f"DB record cleared and in-memory ban removed.",
@@ -310,6 +341,7 @@ def unblock_by_ip_string():
         )
     else:
         _INMEMORY_BANNED_IPS.discard(ip)
+        _audit("unblock_ip", detail=f"IP {ip} cleared from in-memory ban (no DB record found)")
         flash(
             f"IP {ip} was not found in the blocklist (may have expired or "
             f"the ban was memory-only). In-memory entry cleared.",
