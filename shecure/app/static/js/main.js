@@ -137,7 +137,6 @@ document.querySelectorAll('.resolve-alert-btn').forEach(btn => {
 // ── Custom confirm modal ─────────────────────
 // Handles both [data-confirm] buttons and forms with [data-confirm].
 // Falls back to the native dialog if the modal DOM isn't present (e.g. non-admin pages).
-document.addEventListener('DOMContentLoaded', function () {
 (function () {
   const modal   = document.getElementById('admin-confirm-modal');
   const msgEl   = document.getElementById('admin-confirm-message');
@@ -206,7 +205,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 })();
-}); // end DOMContentLoaded
 
 // ── Camera status (dashboard home only — camera page manages its own) ────────
 // Only run this lightweight check on pages that embed the status element
