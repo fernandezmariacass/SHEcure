@@ -5,6 +5,7 @@
 {% block content %}
 <div class="pink-line"></div>
 
+{% if current_user.role != 'member' %}
 <!-- Stats -->
 <div class="stats-grid" role="region" aria-label="Security statistics">
   <div class="stat-card">
@@ -87,6 +88,7 @@
   </div>
 
 </div>
+{% endif %}
 
 <!-- Camera preview -->
 <div class="card mt-3" role="region" aria-label="Camera feed preview">
@@ -175,6 +177,7 @@ function esc(s) {
   setInterval(checkCameraStatus, 5000);
 })();
 
+{% if current_user.role != 'member' %}
 // ── Load all-time stats (not just last 20) ───────────────────────────────────
 function loadStats() {
   fetch('/api/access/stats')
@@ -275,5 +278,6 @@ loadActivityFeed();
 setInterval(loadActivityFeed, 8000);
 setInterval(loadStats, 30000);
 setInterval(loadAlerts, 15000);
+{% endif %}
 </script>
 {% endblock %}
