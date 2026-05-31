@@ -43,7 +43,8 @@ def _verify_recaptcha(token):
         result = resp.json()
         return result.get("success") and result.get("score", 0) >= RECAPTCHA_MIN_SCORE
     except Exception:
-        return True
+        # FIX: fail closed — a network error must not silently allow bots through
+        return False
 
 
 # ── Brute-force lockout ───────────────────────────────────────────────────────
@@ -60,9 +61,12 @@ def _is_locked_out(ip):
 
 def _is_username_locked(username):
     from sqlalchemy import func
+    from app.utils.username_enc import hash_username
     cutoff = now_pst() - timedelta(minutes=LOCKOUT_MINUTES)
+    # FIX: access logs now store HMAC-hashed usernames — query the hash, not plaintext
+    hashed = hash_username(username)
     failures = AccessLog.query.filter(
-        func.lower(AccessLog.username_attempted) == username.lower(),
+        AccessLog.username_attempted == hashed,
         AccessLog.status == "failed",
         AccessLog.timestamp > cutoff,
     ).count()
@@ -171,7 +175,8 @@ def login():
                 lockout_type="IP address lockout",
                 user=User.get_by_username(username),
             )
-            flash(f"Too many failed attempts. Try again in {LOCKOUT_MINUTES} minutes.", "danger")
+            # FIX: generic message — don't reveal lockout duration or confirm account exists
+            flash("Access temporarily restricted. Please try again later.", "danger")
             return render_template("auth/login.html")
 
         if _is_username_locked(username):
@@ -184,7 +189,8 @@ def login():
                 lockout_type="Username lockout",
                 user=User.get_by_username(username),
             )
-            flash(f"Too many failed attempts. Try again in {LOCKOUT_MINUTES} minutes.", "danger")
+            # FIX: same generic message — reveals nothing about account validity
+            flash("Access temporarily restricted. Please try again later.", "danger")
             return render_template("auth/login.html")
 
         # ── TOTP second-step ──────────────────────────────────────────────────
@@ -241,14 +247,9 @@ def login():
                     reason="Invalid credentials",
                     user=user,
                 )
-                remaining = max(0, MAX_FAILED_ATTEMPTS - (
-                    AccessLog.query.filter(
-                        AccessLog.ip_address == ip,
-                        AccessLog.status == "failed",
-                        AccessLog.timestamp > now_pst() - timedelta(minutes=LOCKOUT_MINUTES),
-                    ).count()
-                ))
-                flash(f"Invalid username or password. {remaining} attempts remaining.", "danger")
+                # FIX: no remaining-attempts count — that tells attackers exactly how many
+                # tries remain before lockout. Generic message only.
+                flash("Invalid username or password.", "danger")
                 return render_template("auth/login.html")
 
             if not user.is_approved:
@@ -539,6 +540,9 @@ def disable_2fa():
 @login_required
 @admin_required
 def test_email():
+    # FIX: completely unavailable in production
+    if os.environ.get("FLASK_ENV") == "production" or os.environ.get("RAILWAY_ENVIRONMENT"):
+        abort(404)
     from app.utils.email_utils import _send_email
     import logging
     logging.basicConfig(level=logging.INFO)
@@ -555,6 +559,9 @@ def test_email():
 @login_required
 @admin_required
 def debug_mail():
+    # FIX: completely unavailable in production
+    if os.environ.get("FLASK_ENV") == "production" or os.environ.get("RAILWAY_ENVIRONMENT"):
+        abort(404)
     import smtplib
     server   = os.environ.get("MAIL_SERVER", "")
     port     = int(os.environ.get("MAIL_PORT", "587"))
