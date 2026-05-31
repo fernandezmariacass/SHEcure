@@ -39,15 +39,15 @@
 </div>
 
 <!-- Main grid -->
-<div class="grid-2" style="align-items:start">
+<div class="grid-2" style="align-items:stretch">
 
   <!-- Recent Access -->
-  <div class="card" role="region" aria-label="Recent access log">
+  <div class="card" role="region" aria-label="Recent access log" style="display:flex;flex-direction:column">
     <div class="card-header">
       <h2 class="card-title">Recent Activity</h2>
       <span class="badge badge-pink">Live</span>
     </div>
-    <div style="overflow-x:hidden;contain:layout style;will-change:transform">
+    <div style="overflow-x:hidden;flex:1;contain:layout style;will-change:transform">
       <table aria-label="Recent activity table" class="logs-table">
         <thead>
           <tr>
@@ -63,12 +63,12 @@
       </table>
     </div>
     <div class="card-header" style="border-top:1px solid var(--gray-100);border-bottom:none;justify-content:flex-end">
-      <a href="{{ url_for('dashboard.activity') }}" class="btn btn-ghost btn-sm">View all →</a>
+      <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline btn-sm">View all →</a>
     </div>
   </div>
 
   <!-- Alerts panel -->
-  <div class="card" role="region" aria-label="Security alerts">
+  <div class="card" role="region" aria-label="Security alerts" style="display:flex;flex-direction:column">
     <div class="card-header">
       <h2 class="card-title">Security Alerts</h2>
       {% if alert_count > 0 %}
@@ -77,13 +77,13 @@
         <span class="badge badge-success" id="alert-badge">All clear</span>
       {% endif %}
     </div>
-    <div class="card-body">
+    <div class="card-body" style="flex:1">
       <div id="alert-feed">
         <p class="text-muted" style="font-size:.9rem">Loading alerts…</p>
       </div>
-      <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm" style="margin-top:1rem">
-        View all alerts →
-      </a>
+    </div>
+    <div class="card-header" style="border-top:1px solid var(--gray-100);border-bottom:none;justify-content:flex-end">
+      <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm">View all alerts →</a>
     </div>
   </div>
 
