@@ -47,8 +47,8 @@
       <h2 class="card-title">Recent Activity</h2>
       <span class="badge badge-pink">Live</span>
     </div>
-    <div style="overflow-x:auto;contain:layout style;will-change:transform">
-      <table aria-label="Recent activity table">
+    <div style="overflow-x:hidden;contain:layout style;will-change:transform">
+      <table aria-label="Recent activity table" class="logs-table">
         <thead>
           <tr>
             <th scope="col">IP Address</th>
@@ -314,7 +314,7 @@ function loadActivityFeed() {
       : rows.slice(0, 10).map(row => `
           <tr>
             <td class="text-mono" style="font-size:.78rem">${esc(row.ip)}</td>
-            <td style="font-size:.85rem;font-family:monospace;word-break:break-all">${esc(row.user)}</td>
+            <td style="font-size:.85rem;font-family:monospace">${esc(row.user)}</td>
             <td><span class="badge ${esc(row.badgeClass)}" style="font-size:.72rem;white-space:nowrap">${esc(row.action)}</span></td>
             <td class="text-muted" style="font-size:.75rem;white-space:nowrap">${esc(row.time).replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
           </tr>`).join('');
