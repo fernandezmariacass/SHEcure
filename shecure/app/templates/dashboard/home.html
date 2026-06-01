@@ -45,7 +45,7 @@
   <div class="card" role="region" aria-label="Recent access log">
     <div class="card-header">
       <h2 class="card-title">Recent Activity</h2>
-      <span class="badge badge-pink">Live</span>
+      <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline btn-sm">View all →</a>
     </div>
     <div style="overflow-x:hidden">
       <table aria-label="Recent activity table" class="logs-table" style="table-layout:fixed;width:100%">
@@ -65,15 +65,14 @@
         </tbody>
       </table>
     </div>
-    <div class="card-header" style="border-top:1px solid var(--gray-100);border-bottom:none;justify-content:flex-end">
-      <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline btn-sm">View all →</a>
-    </div>
+
   </div>
 
   <!-- Alerts panel -->
   <div class="card" role="region" aria-label="Security alerts">
     <div class="card-header">
       <h2 class="card-title">Security Alerts</h2>
+      <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm">View all →</a>
     </div>
     <div style="overflow-x:hidden"><table style="width:100%;table-layout:fixed"><thead><tr>
       <th scope="col" style="padding:.5rem 1.2rem">{% if alert_count > 0 %}<span class="badge badge-danger" id="alert-badge">{{ alert_count }} unresolved</span>{% else %}<span class="badge badge-success" id="alert-badge">All clear</span>{% endif %}</th>
@@ -82,9 +81,7 @@
       <div id="alert-feed">
         <p class="text-muted" style="font-size:.9rem">Loading alerts…</p>
       </div>
-      <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm" style="margin-top:1rem">
-        View all alerts →
-      </a>
+
     </div>
   </div>
 
