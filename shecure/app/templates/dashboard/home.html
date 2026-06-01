@@ -313,7 +313,7 @@ function loadActivityFeed() {
     if (!feed) return;
     const newHTML = !rows.length
       ? `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No activity yet</td></tr>`
-      : rows.slice(0, 10).map(row => `
+      : rows.slice(0, 4).map(row => `
           <tr>
             <td class="text-mono" style="font-size:.78rem">${esc(row.ip)}</td>
             <td style="font-size:.85rem">${esc(row.user)}</td>
