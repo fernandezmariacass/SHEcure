@@ -18,7 +18,7 @@ from app.utils.totp_utils import (
 from app.utils.email_utils import (
     build_login_fingerprint, is_new_fingerprint, send_successful_login_alert,
     send_failed_login_alert, send_lockout_alert, send_bot_blocked_alert,
-    send_honeypot_alert, send_unapproved_login_attempt
+    send_honeypot_alert, send_unapproved_login_attempt, send_ip_blocked_alert
 )
 auth_bp = Blueprint("auth", __name__)
 
@@ -173,6 +173,16 @@ def login():
                 timestamp=now_pst().strftime("%Y-%m-%d %H:%M:%S"),
                 lockout_type="IP address lockout",
                 user=User.get_by_username(username),
+            )
+            # Block the IP for 30 minutes and notify admin
+            from app.utils.security import block_ip
+            block_ip(ip, reason=f"Brute force: {MAX_FAILED_ATTEMPTS}+ failed logins", hours=0.5)
+            send_ip_blocked_alert(
+                ip=ip,
+                user_agent=ua,
+                timestamp=now_pst().strftime("%Y-%m-%d %H:%M:%S PST"),
+                username_attempted=username,
+                block_duration_minutes=30,
             )
             # FIX: generic message — don't reveal lockout duration or confirm account exists
             flash("Access temporarily restricted. Please try again later.", "danger")
