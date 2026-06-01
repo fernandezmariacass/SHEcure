@@ -200,21 +200,7 @@ document.querySelectorAll('.resolve-alert-btn').forEach(btn => {
   });
 })();
 
-// ── Camera status (dashboard home only — camera page manages its own) ────────
-// Only run this lightweight check on pages that embed the status element
-// but are NOT the dedicated /camera/ page (which has full reconnection logic).
-const cameraStatusEl = document.getElementById('camera-status-text');
-if (cameraStatusEl && !window.location.pathname.startsWith('/camera')) {
-  fetch('/camera/status')
-    .then(r => r.json())
-    .then(data => {
-      cameraStatusEl.textContent = data.online ? 'LIVE' : 'OFFLINE';
-      cameraStatusEl.style.color = data.online ? '#10b981' : '#ef4444';
-    })
-    .catch(() => {
-      if (cameraStatusEl) cameraStatusEl.textContent = 'UNKNOWN';
-    });
-}
+// ── Camera status (managed by home.html inline script — do not duplicate here)
 
 // ── Table row highlight for suspicious ───────
 document.querySelectorAll('tr[data-suspicious="true"]').forEach(row => {
