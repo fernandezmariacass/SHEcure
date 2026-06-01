@@ -29,11 +29,23 @@ class AccessLog(db.Model):
     reason = db.Column(db.String(200))
     timestamp = db.Column(db.DateTime, default=now_pst, index=True)
     is_unauthorized = db.Column(db.Boolean, default=False)
+    user = db.relationship("User", foreign_keys=[user_id], lazy="joined")
 
     def to_dict(self):
+        # Resolve plaintext username from user_id if available,
+        # otherwise fall back to stored value (may be hash for old records)
+        display_username = self.username_attempted
+        if self.user_id:
+            try:
+                from app.models.user import User
+                user = User.query.get(self.user_id)
+                if user:
+                    display_username = user.username
+            except Exception:
+                pass
         return {
             "id": self.id,
-            "username": self.username_attempted,
+            "username": display_username,
             "ip": self.ip_address,
             "status": self.status,
             "reason": self.reason,
@@ -59,10 +71,21 @@ class ActivityLog(db.Model):
     is_suspicious = db.Column(db.Boolean, default=False)
 
     def to_dict(self):
+        # Resolve plaintext username from user_id if available,
+        # otherwise fall back to stored value (may be hash for old records)
+        display_username = self.username or "—"
+        if self.user_id:
+            try:
+                from app.models.user import User
+                user = User.query.get(self.user_id)
+                if user:
+                    display_username = user.username
+            except Exception:
+                pass
         return {
             "id": self.id,
             "user_id": self.user_id,
-            "username": self.username or "—",
+            "username": display_username,
             "ip": self.ip_address,
             "method": self.method,
             "endpoint": self.endpoint,
