@@ -197,37 +197,57 @@ setInterval(pollStatus, 2000);
 {% else %}
 // ── Camera preview for non-members ───────────────────────────────────────────
 (function () {
-  const STREAM_URL = "{{ url_for('camera.stream') }}";
-  const STATUS_URL = "{{ url_for('camera.status') }}";
-  const img        = document.getElementById('dashboard-cam');
-  const offline    = document.getElementById('dashboard-cam-offline');
-  const statusText = document.getElementById('camera-status-text');
-  let   isAttached = false;
+  const STREAM_URL      = "{{ url_for('camera.stream') }}";
+  const STATUS_URL      = "{{ url_for('camera.status') }}";
+  const img             = document.getElementById('dashboard-cam');
+  const offline         = document.getElementById('dashboard-cam-offline');
+  const statusText      = document.getElementById('camera-status-text');
+  let   isAttached      = false;
+  // Require 3 consecutive offline/error responses before tearing down the
+  // stream — this prevents a single blip (transient 404, network hiccup, or
+  // momentary offline status) from clearing img.src and causing a blink.
+  let   offlineStrikes  = 0;
+  const OFFLINE_THRESHOLD = 3;
+
+  function attachStream() {
+    if (!img) return;
+    img.src = STREAM_URL + '?' + Date.now();
+    img.style.display = '';
+    if (offline) offline.style.display = 'none';
+    isAttached = true;
+  }
+
+  function detachStream() {
+    if (!img) return;
+    img.src = '';
+    img.style.display = 'none';
+    if (offline) offline.style.display = 'flex';
+    isAttached = false;
+  }
 
   function checkCameraStatus() {
     fetch(STATUS_URL)
       .then(r => r.json())
       .then(data => {
         if (data.online) {
+          // Camera is live — reset strike counter and attach only if needed
+          offlineStrikes = 0;
           if (statusText) statusText.textContent = 'LIVE';
-          if (!isAttached && img) {
-            img.src = STREAM_URL + '?' + Date.now();
-            img.style.display = '';
-            if (offline) offline.style.display = 'none';
-            isAttached = true;
-          }
+          if (!isAttached) attachStream();
         } else {
-          if (statusText) statusText.textContent = 'WAITING';
-          if (isAttached && img) {
-            img.src = '';
-            img.style.display = 'none';
-            if (offline) offline.style.display = 'flex';
-            isAttached = false;
-          }
+          // Accumulate strikes; only detach after OFFLINE_THRESHOLD misses
+          offlineStrikes++;
+          if (statusText) statusText.textContent = offlineStrikes >= OFFLINE_THRESHOLD ? 'WAITING' : 'LIVE';
+          if (offlineStrikes >= OFFLINE_THRESHOLD && isAttached) detachStream();
         }
       })
       .catch(() => {
-        if (statusText) statusText.textContent = 'UNKNOWN';
+        // Network error counts as a strike but doesn't immediately detach
+        offlineStrikes++;
+        if (offlineStrikes >= OFFLINE_THRESHOLD) {
+          if (statusText) statusText.textContent = 'UNKNOWN';
+          if (isAttached) detachStream();
+        }
       });
   }
 
