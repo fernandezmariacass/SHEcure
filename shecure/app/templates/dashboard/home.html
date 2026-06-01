@@ -258,7 +258,7 @@ function loadAlerts() {
         return;
       }
       container.innerHTML = alerts.slice(0, 4).map(a => `
-        <div class="alert-item">
+        <div class="alert-item" style="height:120px;overflow:hidden;align-items:center">
           <div class="alert-item-icon" aria-hidden="true"></div>
           <div class="alert-item-body">
             <div class="alert-item-ip">${esc(a.ip)}</div>
@@ -310,7 +310,7 @@ function loadActivityFeed() {
     const newHTML = !rows.length
       ? `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No activity yet</td></tr>`
       : rows.slice(0, 4).map(row => `
-          <tr>
+          <tr style="height:120px;vertical-align:middle">
             <td class="text-mono" style="font-size:.78rem">${esc(row.ip)}</td>
             <td style="font-size:.85rem">${esc(row.user)}</td>
             <td><span class="badge ${esc(row.badgeClass)}" style="font-size:.72rem;white-space:nowrap">${esc(row.action)}</span></td>
