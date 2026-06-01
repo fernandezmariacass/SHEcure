@@ -3,48 +3,110 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Too Many Requests | SHEcure</title>
+  <title>Too Many Attempts | SHEcure</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style nonce="{{ csp_nonce }}">
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
+      background: #fffbf0;
       font-family: 'DM Sans', sans-serif;
-      background: #fff0f7;
       display: grid;
       place-items: center;
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
     }
-    .alert {
-      padding: .85rem 1.2rem;
-      border-radius: 0;
-      font-size: .9rem;
+    .shell {
+      position: relative;
+      width: min(480px, calc(100vw - 2rem));
+      text-align: center;
+      padding: 2.5rem 2rem;
+      background: #ffffff;
+      border: 1.5px solid #ffd580;
+      border-radius: 20px;
+      box-shadow: 0 12px 40px rgba(200,130,0,.14), 0 4px 16px rgba(0,0,0,.07);
+      animation: appear 0.25s cubic-bezier(.34,1.56,.64,1) both;
+    }
+    @keyframes appear {
+      from { opacity: 0; transform: translateY(14px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0)   scale(1);    }
+    }
+    .glyph  { font-size: 3rem; line-height: 1; margin-bottom: 0.75rem; }
+    .code   {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 5rem; font-weight: 700; line-height: 1;
+      color: #c87800;
+      text-shadow: 0 0 28px rgba(200,130,0,.25);
+      letter-spacing: -2px;
+    }
+    .label  {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 1.35rem; font-weight: 600; color: #7a4a00;
+      letter-spacing: 3px; text-transform: uppercase;
+      margin: 0.4rem 0 1.4rem;
+    }
+    .msg    { font-size: 0.9rem; color: #4b5563; line-height: 1.7; margin-bottom: 1.25rem; }
+    .ip-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.4rem 1.1rem;
+      background: #fffbf0; border: 1.5px solid #ffd580; border-radius: 9999px;
+      font-family: 'DM Mono', 'Courier New', monospace;
+      font-size: 0.85rem; color: #7a4a00; letter-spacing: 0.05em;
+      margin-bottom: 1.25rem;
+    }
+    .ip-badge::before { content: '⏳'; font-size: 0.8rem; }
+    .warn-box {
+      padding: 0.75rem 1rem;
+      background: #fff8e1; border: 1px solid #ffd580; border-radius: 12px;
+      color: #7a4a00; font-size: 0.83rem; line-height: 1.5;
       margin-bottom: 1rem;
-      display: flex;
-      align-items: flex-start;
-      gap: .6rem;
-      border-left: 4px solid #e91e8c;
-      background: transparent;
-      color: #e91e8c;
-      text-align: left;
+    }
+    .info-box {
+      padding: 0.6rem 1rem;
+      background: #f9f9f9; border: 1px solid #e5e7eb; border-radius: 10px;
+      color: #6b7280; font-size: 0.8rem; line-height: 1.5;
+    }
+    .footer {
+      margin-top: 1.75rem; padding-top: 1rem;
+      border-top: 1px solid #fdefc4;
+      font-family: 'DM Mono', 'Courier New', monospace;
+      font-size: 0.75rem; color: #c0a060; letter-spacing: 0.05em;
     }
   </style>
 </head>
 <body>
-  <div style="text-align:center;max-width:420px;padding:2rem">
-    <div style="font-size:4rem;margin-bottom:1rem" aria-hidden="true">⏳</div>
-    <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:2.5rem;color:#9c1261;margin-bottom:.5rem">
-      Too Many Requests
-    </h1>
-    <p style="color:#4b5563;margin-bottom:2rem">
-      You've made too many requests in a short period of time.
-      Please wait a moment before trying again.
+  <div class="shell" role="main">
+    <div class="glyph" aria-hidden="true">⏳</div>
+    <div class="code" aria-label="Error 429">429</div>
+    <div class="label">Temporarily Locked</div>
+
+    <p class="msg">
+      {% if block_reason %}
+        {{ block_reason }}
+      {% else %}
+        Too many failed login attempts have been detected from your IP address.
+      {% endif %}
+      <br>
+      Access is temporarily suspended for
+      <strong>{{ block_minutes | default(30) }} minutes</strong>.
     </p>
-    <div class="alert" role="alert">
-      Rate limit exceeded. Please slow down.
+
+    {% if client_ip %}
+    <div class="ip-badge" aria-label="Your IP: {{ client_ip }}">{{ client_ip }}</div>
+    {% endif %}
+
+    <div class="warn-box" role="alert">
+      ⚠︎&nbsp; This is a <strong>temporary</strong> cooldown due to repeated failed login
+      attempts. Your access will automatically restore after the cooldown period.
     </div>
+
+    <div class="info-box">
+      This is <em>not</em> a permanent ban. If you believe this is a mistake,
+      please contact the system administrator.
+    </div>
+
+    <div class="footer">// shecure — brute-force protection active //</div>
   </div>
 </body>
 </html>
