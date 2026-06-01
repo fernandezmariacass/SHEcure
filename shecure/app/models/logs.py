@@ -29,7 +29,6 @@ class AccessLog(db.Model):
     reason = db.Column(db.String(200))
     timestamp = db.Column(db.DateTime, default=now_pst, index=True)
     is_unauthorized = db.Column(db.Boolean, default=False)
-    user = db.relationship("User", foreign_keys=[user_id], lazy="joined")
 
     def to_dict(self):
         # Resolve plaintext username from user_id if available,
