@@ -185,12 +185,21 @@ def load_user(user_id):
 
 
 class BlockedIP(db.Model):
-    """IPs temporarily or permanently blocked by the honeypot or an admin."""
+    """IPs temporarily or permanently blocked by the honeypot or an admin.
+
+    block_type values
+    -----------------
+    "brute_force"  – 30-minute cooldown after MAX_FAILED_ATTEMPTS bad logins.
+    "honeypot"     – 24-hour ban triggered by probing a honeypot path.
+    "admin"        – Manually added by an administrator (no automatic expiry).
+    """
     __tablename__ = "blocked_ips"
 
     id         = db.Column(db.Integer,    primary_key=True)
     ip_address = db.Column(db.String(45), unique=True, nullable=False, index=True)
     reason     = db.Column(db.String(300))
+    # "brute_force" | "honeypot" | "admin"
+    block_type = db.Column(db.String(20), nullable=False, default="honeypot")
     blocked_at = db.Column(db.DateTime,   default=now_pst)
     expires_at = db.Column(db.DateTime,   nullable=True)   # NULL = permanent
     is_active  = db.Column(db.Boolean,    default=True)
