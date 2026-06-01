@@ -405,7 +405,10 @@ def register_security_middleware(app):
             for _ban_ip in all_ips:
                 _INMEMORY_BANNED_IPS.add(_ban_ip)
                 try:
-                    block_ip(_ban_ip, reason=f"Honeypot auto-ban: probed '{path}'", hours=24)
+                    block_ip(_ban_ip,
+                             reason=f"Honeypot auto-ban: probed '{path}'",
+                             hours=24,
+                             block_type="honeypot")
                 except Exception:
                     pass
             try:
@@ -441,34 +444,73 @@ def register_security_middleware(app):
 
         cookie_banned = request.cookies.get(_BAN_COOKIE) == "1"
         mem_banned    = any(i in _INMEMORY_BANNED_IPS for i in all_ips)
-        db_banned     = False
+
+        # is_ip_blocked() now returns the block_type string or None
+        db_block_type = None
         try:
-            db_banned = any(is_ip_blocked(i) for i in all_ips)
+            for _chk_ip in all_ips:
+                _bt = is_ip_blocked(_chk_ip)
+                if _bt:
+                    db_block_type = _bt
+                    break
         except Exception:
             pass
 
-        if cookie_banned or mem_banned or db_banned:
+        # Determine effective block type:
+        # cookie / memory flags are always from a honeypot path hit (24 h ban).
+        # Only a DB entry distinguishes brute_force (30 min) from honeypot (24 h).
+        effective_block_type = None
+        if db_block_type:
+            effective_block_type = db_block_type        # "brute_force" | "honeypot" | "admin"
+        elif cookie_banned or mem_banned:
+            effective_block_type = "honeypot"           # cookie/memory = honeypot path hit
+
+        if effective_block_type:
             try:
-                log_access("unknown", "blocked", reason="IP on honeypot blocklist")
+                log_access("unknown", "blocked",
+                           reason=f"IP blocked ({effective_block_type})")
             except Exception:
                 pass
-            # Render 403.html inline — no redirect at all.
-            # There is NO URL they can type that will ever show a login form.
+
             if path == "/banned":
                 return  # let /banned route render normally, no loop
+
             from flask import render_template as _rt
             _secure_cookie = (
                 os.environ.get("RAILWAY_ENVIRONMENT") is not None
                 or os.environ.get("FLASK_ENV") == "production"
             )
-            resp = make_response(_rt("errors/403.html", client_ip=ip), 403)
-            resp.set_cookie(
-                "_hp_block", "1",
-                max_age=86400,
-                httponly=True,
-                samesite="Lax",
-                secure=_secure_cookie,
-            )
+
+            if effective_block_type == "brute_force":
+                # Short 30-minute cooldown — show the rate-limit page (429 style)
+                resp = make_response(
+                    _rt("errors/429.html",
+                        client_ip=ip,
+                        block_minutes=30,
+                        block_reason="Too many failed login attempts from this IP."),
+                    429,
+                )
+                # Short cookie — expires with the block (30 min = 1800 s)
+                resp.set_cookie(
+                    "_bf_block", "1",
+                    max_age=1800,
+                    httponly=True,
+                    samesite="Lax",
+                    secure=_secure_cookie,
+                )
+            else:
+                # Honeypot / admin ban — hard 403 with 24-hour cookie
+                resp = make_response(
+                    _rt("errors/403.html", client_ip=ip),
+                    403,
+                )
+                resp.set_cookie(
+                    "_hp_block", "1",
+                    max_age=86400,
+                    httponly=True,
+                    samesite="Lax",
+                    secure=_secure_cookie,
+                )
             return resp
 
         # Always allow if endpoint is exempt or can't be resolved
@@ -591,7 +633,16 @@ def approved_required(f):
 
 # ── IP blocklist (honeypot auto-ban) ─────────────────────────────────────────
 
-def block_ip(ip: str, reason: str, hours: int = 24) -> None:
+def block_ip(ip: str, reason: str, hours: int = 24,
+             block_type: str = "honeypot") -> None:
+    """
+    Block *ip* for *hours* hours.
+
+    block_type must be one of:
+      "brute_force"  – short 30-min cooldown from bad-login attempts
+      "honeypot"     – 24-hour ban from probing a trap path
+      "admin"        – manually added by an administrator
+    """
     import logging
     from datetime import timedelta
     from app import db
@@ -603,19 +654,22 @@ def block_ip(ip: str, reason: str, hours: int = 24) -> None:
         existing = BlockedIP.query.filter_by(ip_address=ip).first()
         expires = now_pst() + timedelta(hours=hours)
         if existing:
-            existing.reason = reason[:300]
+            existing.reason     = reason[:300]
+            existing.block_type = block_type
             existing.blocked_at = now_pst()
             existing.expires_at = expires
-            existing.is_active = True
+            existing.is_active  = True
         else:
             db.session.add(BlockedIP(
                 ip_address=ip,
                 reason=reason[:300],
+                block_type=block_type,
                 expires_at=expires,
                 is_active=True,
             ))
         db.session.commit()
-        _log.warning("[blocklist] %s blocked for %dh — %s", ip, hours, reason)
+        _log.warning("[blocklist] %s blocked for %dh (%s) — %s",
+                     ip, hours, block_type, reason)
     except Exception as exc:
         db.session.rollback()
         _log.error("[blocklist] failed to block %s: %s", ip, exc)
@@ -628,14 +682,20 @@ def block_ip(ip: str, reason: str, hours: int = 24) -> None:
     # only when the *current* request's IP hits a honeypot route.
 
 
-def is_ip_blocked(ip: str) -> bool:
+def is_ip_blocked(ip: str) -> str | None:
+    """
+    Return the block_type string ("brute_force" | "honeypot" | "admin")
+    if *ip* is currently blocked, or None if it is not.
+    """
     from app.models.user import BlockedIP
     if not ip or ip == "unknown":
-        return False
+        return None
     entry = BlockedIP.query.filter_by(ip_address=ip, is_active=True).first()
     if entry is None:
-        return False
-    return entry.is_currently_blocked()
+        return None
+    if not entry.is_currently_blocked():
+        return None
+    return entry.block_type or "honeypot"
 
 
 def unblock_ip(ip: str) -> bool:
