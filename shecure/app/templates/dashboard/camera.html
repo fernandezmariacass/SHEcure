@@ -41,35 +41,6 @@
 <video id="capture-video" autoplay muted playsinline style="display:none"></video>
 <canvas id="capture-canvas" style="display:none"></canvas>
 
-<!-- ── IP Removal Warning Modal ─────────────────────────────────────────── -->
-<div id="ip-warning-modal" style="
-  display:none;position:fixed;inset:0;z-index:9999;
-  background:rgba(0,0,0,.65);backdrop-filter:blur(4px);
-  align-items:center;justify-content:center;">
-  <div style="
-    background:var(--surface,#1e1e2e);border:1px solid #e91e8c;
-    border-radius:12px;padding:2rem;max-width:420px;width:90%;
-    box-shadow:0 0 40px rgba(233,30,140,.25);text-align:center;">
-    <div style="font-size:2rem;margin-bottom:.75rem">⚠️</div>
-    <h3 style="margin:0 0 .75rem;color:#e91e8c;font-size:1.15rem">Your IP Was Removed</h3>
-    <p style="color:var(--gray-300,#d1d5db);font-size:.9rem;margin-bottom:1.5rem;line-height:1.5">
-      Your IP address has been removed from the allow-list by an admin.
-      If you continue broadcasting, the stream will be cut on the next frame.
-      Do you want to stop the broadcast now?
-    </p>
-    <div style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap">
-      <button id="ip-modal-stop" class="btn btn-danger" style="min-width:130px">
-        ■ Stop Broadcast
-      </button>
-      <button id="ip-modal-continue" class="btn btn-outline" style="min-width:130px">
-        Keep Going
-      </button>
-    </div>
-    <p style="margin-top:1rem;font-size:.75rem;color:var(--gray-400,#9ca3af)">
-      Contact your admin to re-add your IP if this was a mistake.
-    </p>
-  </div>
-</div>
 
 <div class="card" style="max-width:1100px;margin:1.5rem auto 0">
   <div class="card-header">
@@ -78,21 +49,9 @@
   </div>
   <div class="card-body">
 
-    <div id="permission-section">
-      <p style="margin-bottom:.75rem;font-size:.9rem;color:var(--gray-400)">
-        Click below to allow camera access. Your browser will ask for permission.
-      </p>
-      <button id="grant-btn" class="btn btn-primary">🎥 Allow Camera Access</button>
-      <p id="permission-error" style="color:#ef4444;font-size:.85rem;margin-top:.5rem;display:none"></p>
-    </div>
+    <div id="controls-section">
 
-    <div id="controls-section" style="display:none">
-      <div style="margin-bottom:1rem">
-        <label class="form-label" for="camera-select">Select Camera</label>
-        <select id="camera-select" class="form-control" style="max-width:400px"></select>
-      </div>
       <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
-        <button id="start-btn" class="btn btn-primary">▶ Start Broadcasting</button>
         <button id="stop-btn" class="btn btn-outline" style="display:none">■ Stop Broadcasting</button>
         <span id="broadcast-fps" style="font-size:.8rem;color:var(--gray-400)"></span>
       </div>
@@ -161,7 +120,7 @@ let ipWarningShown = false; // prevent repeated modal triggers
 const video          = document.getElementById('capture-video');
 const canvas         = document.getElementById('capture-canvas');
 const ctx            = canvas.getContext('2d');
-const startBtn       = document.getElementById('start-btn');
+const startBtn       = null;
 const stopBtn        = document.getElementById('stop-btn');
 const badge          = document.getElementById('broadcast-status-badge');
 const fpsEl          = document.getElementById('broadcast-fps');
@@ -170,31 +129,13 @@ const grantBtn       = document.getElementById('grant-btn');
 const permSection    = document.getElementById('permission-section');
 const controlSection = document.getElementById('controls-section');
 const permError      = document.getElementById('permission-error');
-const ipModal        = document.getElementById('ip-warning-modal');
-const ipModalStop    = document.getElementById('ip-modal-stop');
-const ipModalCont    = document.getElementById('ip-modal-continue');
+const ipModal        = null;
+const ipModalStop    = null;
+const ipModalCont    = null;
 
 // ── IP-removal modal helpers ──────────────────────────────────────────────────
-function showIpWarning() {
-  if (ipWarningShown) return;
-  ipWarningShown = true;
-  ipModal.style.display = 'flex';
-}
-
-function hideIpWarning() {
-  ipModal.style.display = 'none';
-}
-
-ipModalStop.addEventListener('click', () => {
-  hideIpWarning();
-  stopBtn.click();  // reuse existing stop logic
-});
-
-ipModalCont.addEventListener('click', () => {
-  // User chose to keep going — dismiss but re-arm for a future removal
-  hideIpWarning();
-  ipWarningShown = false;
-});
+function showIpWarning() { /* removed */ }
+function hideIpWarning() { /* removed */ }
 
 // ── Broadcaster-status polling (only while live) ──────────────────────────────
 let isBroadcasting = false;  // track whether a broadcast is actively running
@@ -292,7 +233,7 @@ startBtn.addEventListener('click', async () => {
   // Extra buffer to ensure first real frame is ready
   await new Promise(resolve => setTimeout(resolve, 500));
 
-  startBtn.style.display = 'none';
+  startBtn && (startBtn.style.display = 'none');
   stopBtn.style.display  = '';
   badge.style.background = '#10b981';
   badge.textContent      = 'Broadcasting';
@@ -330,7 +271,7 @@ stopBtn.addEventListener('click', async () => {
   broadcastLoop = null;
   if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
   video.srcObject = null;
-  startBtn.style.display = '';
+  startBtn && (startBtn.style.display = '');
   stopBtn.style.display  = 'none';
   badge.style.background = '#6b7280';
   badge.textContent      = 'Stopped';
