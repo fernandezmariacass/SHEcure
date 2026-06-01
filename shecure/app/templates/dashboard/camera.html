@@ -35,27 +35,6 @@
     </div>
   </div>
 </div>
-
-{% if is_broadcaster %}
-<!-- Hidden video + canvas used only for frame capture, never shown -->
-<video id="capture-video" autoplay muted playsinline style="display:none"></video>
-<canvas id="capture-canvas" style="display:none"></canvas>
-
-<div class="card" style="max-width:1100px;margin:1.5rem auto 0">
-  <div class="card-header">
-    <h2 class="card-title">📡 Broadcast Controls</h2>
-    <span class="badge" id="broadcast-status-badge" style="background:#6b7280;color:#fff">Stopped</span>
-  </div>
-  <div class="card-body">
-    <div id="controls-section">
-      <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
-        <button id="stop-btn" class="btn btn-outline" style="display:none">■ Stop Broadcasting</button>
-        <span id="broadcast-fps" style="font-size:.8rem;color:var(--gray-400)"></span>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -69,7 +48,6 @@ function pollStatus() {
     .then(d => {
       const streamStatus = document.getElementById('stream-status');
       const statusText   = document.getElementById('camera-status-text');
-      const img          = document.getElementById('camera-img');
       if (d.online) {
         if (streamStatus) { streamStatus.className='badge badge-success'; streamStatus.textContent='Live'; }
         if (statusText)   statusText.textContent = 'LIVE';
@@ -94,102 +72,5 @@ function pollStatus() {
 }
 pollStatus();
 setInterval(pollStatus, 2000);
-
-{% if is_broadcaster %}
-const INGEST_URL             = "{{ url_for('camera.broadcast_proxy') }}";
-const BROADCASTER_STATUS_URL = "{{ url_for('camera.broadcaster_status') }}";
-const TARGET_FPS             = 15;
-const JPEG_QUALITY           = 0.7;
-
-let mediaStream   = null;
-let broadcastLoop = null;
-let frameCount    = 0;
-let fpsTimer      = null;
-
-const video   = document.getElementById('capture-video');
-const canvas  = document.getElementById('capture-canvas');
-const ctx     = canvas.getContext('2d');
-const stopBtn = document.getElementById('stop-btn');
-const badge   = document.getElementById('broadcast-status-badge');
-const fpsEl   = document.getElementById('broadcast-fps');
-
-// ── Auto-start broadcasting on page load ──────────────────────────────────────
-(async function autoStart() {
-  if (!INGEST_URL) return;
-
-  try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false,
-    });
-  } catch (err) {
-    showToast(`Could not access camera: ${err.message}`, 'danger');
-    return;
-  }
-
-  video.srcObject = mediaStream;
-
-  await new Promise(resolve => {
-    video.onloadedmetadata = () => { video.play().then(resolve).catch(resolve); };
-  });
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  stopBtn.style.display  = '';
-  badge.style.background = '#10b981';
-  badge.textContent      = 'Broadcasting';
-  frameCount = 0;
-
-  fpsTimer = setInterval(() => { fpsEl.textContent = `${frameCount} fps`; frameCount = 0; }, 1000);
-
-  const interval = Math.round(1000 / TARGET_FPS);
-  broadcastLoop = setInterval(() => {
-    if (!video.videoWidth || !video.videoHeight || video.readyState < 2) return;
-    canvas.width  = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-    canvas.toBlob(async (blob) => {
-      if (!blob || blob.size < 100) return;
-      try {
-        const res = await fetch(INGEST_URL, { method: 'POST', body: blob });
-        if (res.ok) frameCount++;
-      } catch (e) {}
-    }, 'image/jpeg', JPEG_QUALITY);
-  }, interval);
-})();
-
-// ── Stop broadcasting ─────────────────────────────────────────────────────────
-stopBtn.addEventListener('click', async () => {
-  clearInterval(broadcastLoop);
-  clearInterval(fpsTimer);
-  broadcastLoop = null;
-  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
-  video.srcObject = null;
-  stopBtn.style.display  = 'none';
-  badge.style.background = '#6b7280';
-  badge.textContent      = 'Stopped';
-  fpsEl.textContent      = '';
-
-  try {
-    await fetch('{{ url_for("camera.clear_broadcast_proxy") }}', { method: 'POST' });
-  } catch (e) {}
-
-  const img = document.getElementById('camera-img');
-  if (img) {
-    img.src = '';
-    img.removeAttribute('src');
-    const blank = img.cloneNode(false);
-    blank.style.background = '#000';
-    blank.style.minHeight  = '300px';
-    img.parentNode.replaceChild(blank, img);
-  }
-  const streamStatus = document.getElementById('stream-status');
-  const statusText   = document.getElementById('camera-status-text');
-  if (streamStatus) { streamStatus.className='badge badge-warning'; streamStatus.textContent='Waiting for broadcaster…'; }
-  if (statusText)   statusText.textContent = 'WAITING';
-  wasOffline = true;
-
-  showToast('Broadcast stopped.', 'info');
-});
-{% endif %}
 </script>
 {% endblock %}
