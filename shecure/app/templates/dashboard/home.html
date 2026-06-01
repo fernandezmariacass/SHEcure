@@ -310,11 +310,11 @@ function loadActivityFeed() {
     const newHTML = !rows.length
       ? `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No activity yet</td></tr>`
       : rows.slice(0, 4).map(row => `
-          <tr style="height:120px;vertical-align:middle">
-            <td class="text-mono" style="font-size:.78rem">${esc(row.ip)}</td>
-            <td style="font-size:.85rem">${esc(row.user)}</td>
-            <td><span class="badge ${esc(row.badgeClass)}" style="font-size:.72rem;white-space:nowrap">${esc(row.action)}</span></td>
-            <td class="text-muted" style="font-size:.75rem;white-space:nowrap">${esc(row.time).replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
+          <tr>
+            <td class="text-mono" style="font-size:.78rem;height:120px;vertical-align:middle">${esc(row.ip)}</td>
+            <td style="font-size:.85rem;height:120px;vertical-align:middle">${esc(row.user)}</td>
+            <td style="height:120px;vertical-align:middle"><span class="badge ${esc(row.badgeClass)}" style="font-size:.72rem;white-space:nowrap">${esc(row.action)}</span></td>
+            <td class="text-muted" style="font-size:.75rem;white-space:nowrap;height:120px;vertical-align:middle">${esc(row.time).replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
           </tr>`).join('');
     if (feed.innerHTML !== newHTML) feed.innerHTML = newHTML;
   });
