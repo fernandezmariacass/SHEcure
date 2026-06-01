@@ -197,28 +197,27 @@ setInterval(pollStatus, 2000);
 {% else %}
 // ── Camera preview for non-members ───────────────────────────────────────────
 (function () {
-  const STREAM_URL      = "{{ url_for('camera.stream') }}";
-  const STATUS_URL      = "{{ url_for('camera.status') }}";
-  const img             = document.getElementById('dashboard-cam');
-  const offline         = document.getElementById('dashboard-cam-offline');
-  const statusText      = document.getElementById('camera-status-text');
-  let   isAttached      = false;
-  // Require 3 consecutive offline/error responses before tearing down the
-  // stream — this prevents a single blip (transient 404, network hiccup, or
-  // momentary offline status) from clearing img.src and causing a blink.
-  let   offlineStrikes  = 0;
+  const STREAM_URL = "{{ url_for('camera.stream') }}";
+  const STATUS_URL = "{{ url_for('camera.status') }}";
+  const img        = document.getElementById('dashboard-cam');
+  const offline    = document.getElementById('dashboard-cam-offline');
+  const statusText = document.getElementById('camera-status-text');
+  let   isAttached    = false;
+  let   offlineStrikes = 0;
   const OFFLINE_THRESHOLD = 3;
 
+  // Set src exactly once — reassigning it tears down the MJPEG connection
+  // and causes a visible blink even if the URL is identical.
   function attachStream() {
-    if (!img) return;
-    img.src = STREAM_URL + '?' + Date.now();
+    if (!img || isAttached) return;
+    img.src = STREAM_URL;
     img.style.display = '';
     if (offline) offline.style.display = 'none';
     isAttached = true;
   }
 
   function detachStream() {
-    if (!img) return;
+    if (!img || !isAttached) return;
     img.src = '';
     img.style.display = 'none';
     if (offline) offline.style.display = 'flex';
@@ -230,23 +229,22 @@ setInterval(pollStatus, 2000);
       .then(r => r.json())
       .then(data => {
         if (data.online) {
-          // Camera is live — reset strike counter and attach only if needed
           offlineStrikes = 0;
           if (statusText) statusText.textContent = 'LIVE';
-          if (!isAttached) attachStream();
+          attachStream();
         } else {
-          // Accumulate strikes; only detach after OFFLINE_THRESHOLD misses
           offlineStrikes++;
-          if (statusText) statusText.textContent = offlineStrikes >= OFFLINE_THRESHOLD ? 'WAITING' : 'LIVE';
-          if (offlineStrikes >= OFFLINE_THRESHOLD && isAttached) detachStream();
+          if (offlineStrikes >= OFFLINE_THRESHOLD) {
+            if (statusText) statusText.textContent = 'WAITING';
+            detachStream();
+          }
         }
       })
       .catch(() => {
-        // Network error counts as a strike but doesn't immediately detach
         offlineStrikes++;
         if (offlineStrikes >= OFFLINE_THRESHOLD) {
           if (statusText) statusText.textContent = 'UNKNOWN';
-          if (isAttached) detachStream();
+          detachStream();
         }
       });
   }
