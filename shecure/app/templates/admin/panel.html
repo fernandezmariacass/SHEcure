@@ -5,7 +5,23 @@
 {% block content %}
 <div class="pink-line"></div>
 
-<!-- Stats row -->
+<!-- ① Camera Feed (top) -->
+<div class="card" style="margin-bottom:2rem">
+  <div class="card-header" style="display:flex;align-items:center;gap:.75rem">
+    <h2 class="card-title" style="margin:0">♛ Camera Feed</h2>
+  </div>
+  <div class="card-body" style="display:flex;align-items:center;gap:1rem">
+    {% if ip_allowed %}
+    <a href="{{ url_for('camera.feed_page') }}" class="btn btn-primary btn-sm">▶ Open Camera Feed</a>
+    <small class="text-muted">Live feed is available from your current IP.</small>
+    {% else %}
+    <span class="btn btn-outline btn-sm" style="opacity:.45;cursor:not-allowed;pointer-events:none">♛ Camera Feed</span>
+    <small class="text-muted" style="color:var(--danger)">Access blocked — your IP is not on the allow-list.</small>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ② Stats row -->
 <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:2.5rem">
   <div class="stat-card">
     <div class="stat-icon stat-icon-pink" aria-hidden="true">۶ৎ</div>
@@ -25,7 +41,7 @@
   </div>
 </div>
 
-<!-- ① User Management -->
+<!-- ③ User Management -->
 <div class="card" class="admin-section">
   <div class="card-header">
     <h2 class="card-title">۶ৎ User Management</h2>
@@ -111,7 +127,7 @@
   </div>
 </div>
 
-<!-- ② IP Allow-list + Quick Links -->
+<!-- ④ IP Allow-list + Quick Links -->
 <div class="grid-2" style="align-items:start;margin-bottom:2rem">
   <div class="card">
     <div class="card-header">
@@ -160,11 +176,7 @@
       <a href="{{ url_for('admin.logs') }}" class="btn btn-outline btn-sm">𓇼 View Access Logs</a>
       <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm">⟡ View Alerts</a>
       <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline btn-sm">♡︎ Activity Log</a>
-      {% if ip_allowed %}
-      <a href="{{ url_for('camera.feed_page') }}" class="btn btn-outline btn-sm">♛ Camera Feed</a>
-      {% else %}
-      <span class="btn btn-outline btn-sm" style="opacity:.45;cursor:not-allowed;pointer-events:none">♛ Camera Feed (IP blocked)</span>
-      {% endif %}
+
       <form method="POST" action="{{ url_for('admin.test_email') }}" class="quick-link-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="btn btn-outline btn-sm quick-link-btn">✉ Test Email</button>
@@ -177,7 +189,7 @@
   </div>
 </div>
 
-<!-- ③ Honeypot Blocked IPs -->
+<!-- ⑤ Honeypot Blocked IPs -->
 <div class="card" class="admin-section">
   <div class="card-header" style="display:flex;align-items:center;gap:.75rem">
     <h2 class="card-title" style="margin:0">🚫 Honeypot Blocked IPs</h2>
@@ -246,7 +258,7 @@
   </div>
 </div>
 
-<!-- ④ LAN Devices -->
+<!-- ⑥ LAN Devices -->
 <div class="card" class="admin-section">
   <div class="card-header" style="display:flex;align-items:center;gap:.75rem">
     <h2 class="card-title" style="margin:0">🖧 LAN Devices</h2>
