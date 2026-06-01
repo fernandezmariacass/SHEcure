@@ -6,6 +6,39 @@
 <div class="pink-line"></div>
 
 {% if current_user.role != 'member' %}
+<!-- Camera preview (non-members) -->
+<div class="card mt-3" role="region" aria-label="Camera feed preview">
+  <div class="card-header">
+    <h2 class="card-title">📷 Camera Preview</h2>
+    <a href="{{ url_for('camera.feed_page') }}" class="btn btn-outline btn-sm">Full view →</a>
+  </div>
+  <div class="card-body">
+    <div class="camera-container" style="max-height:320px">
+      <img src="" class="camera-feed"
+        alt="Live camera feed" id="dashboard-cam"
+        style="display:none" />
+      <div id="dashboard-cam-offline" style="
+          display:flex;align-items:center;justify-content:center;
+          min-height:180px;background:#111;border-radius:8px;
+          color:rgba(255,255,255,.4);font-size:.9rem;gap:.5rem">
+        <span aria-hidden="true">⏾</span> Waiting for broadcaster…
+      </div>
+      <div class="camera-overlay" aria-hidden="true">
+        <div class="camera-corner camera-corner-tl"></div>
+        <div class="camera-corner camera-corner-tr"></div>
+        <div class="camera-corner camera-corner-bl"></div>
+        <div class="camera-corner camera-corner-br"></div>
+        <div class="camera-status-bar">
+          <div class="camera-live-dot">
+            <div class="live-indicator"></div>
+            <span id="camera-status-text">CHECKING</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Stats -->
 <div class="stats-grid" role="region" aria-label="Security statistics">
   <div class="stat-card">
@@ -85,39 +118,6 @@
     </div>
   </div>
 
-</div>
-
-<!-- Camera preview (non-members) -->
-<div class="card mt-3" role="region" aria-label="Camera feed preview">
-  <div class="card-header">
-    <h2 class="card-title">📷 Camera Preview</h2>
-    <a href="{{ url_for('camera.feed_page') }}" class="btn btn-outline btn-sm">Full view →</a>
-  </div>
-  <div class="card-body">
-    <div class="camera-container" style="max-height:320px">
-      <img src="" class="camera-feed"
-        alt="Live camera feed" id="dashboard-cam"
-        style="display:none" />
-      <div id="dashboard-cam-offline" style="
-          display:flex;align-items:center;justify-content:center;
-          min-height:180px;background:#111;border-radius:8px;
-          color:rgba(255,255,255,.4);font-size:.9rem;gap:.5rem">
-        <span aria-hidden="true">⏾</span> Waiting for broadcaster…
-      </div>
-      <div class="camera-overlay" aria-hidden="true">
-        <div class="camera-corner camera-corner-tl"></div>
-        <div class="camera-corner camera-corner-tr"></div>
-        <div class="camera-corner camera-corner-bl"></div>
-        <div class="camera-corner camera-corner-br"></div>
-        <div class="camera-status-bar">
-          <div class="camera-live-dot">
-            <div class="live-indicator"></div>
-            <span id="camera-status-text">CHECKING</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 </div>
 
 {% else %}
