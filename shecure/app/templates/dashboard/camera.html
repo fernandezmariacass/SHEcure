@@ -41,25 +41,18 @@
 <video id="capture-video" autoplay muted playsinline style="display:none"></video>
 <canvas id="capture-canvas" style="display:none"></canvas>
 
-
 <div class="card" style="max-width:1100px;margin:1.5rem auto 0">
   <div class="card-header">
     <h2 class="card-title">📡 Broadcast Controls</h2>
     <span class="badge" id="broadcast-status-badge" style="background:#6b7280;color:#fff">Stopped</span>
   </div>
   <div class="card-body">
-
     <div id="controls-section">
-
       <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
         <button id="stop-btn" class="btn btn-outline" style="display:none">■ Stop Broadcasting</button>
         <span id="broadcast-fps" style="font-size:.8rem;color:var(--gray-400)"></span>
       </div>
     </div>
-
-    <p style="margin-top:1rem;font-size:.8rem;color:var(--gray-400)">
-      Only admins and the designated broadcaster account can start a broadcast.
-    </p>
   </div>
 </div>
 {% endif %}
@@ -81,10 +74,8 @@ function pollStatus() {
         if (streamStatus) { streamStatus.className='badge badge-success'; streamStatus.textContent='Live'; }
         if (statusText)   statusText.textContent = 'LIVE';
         if (wasOffline) {
-          // Find the stream img (may have been replaced with blank clone)
           let streamImg = document.getElementById('camera-img');
           if (!streamImg) {
-            // Was replaced — find it by class and restore src
             streamImg = document.querySelector('.camera-feed');
           }
           if (streamImg) {
@@ -105,118 +96,32 @@ pollStatus();
 setInterval(pollStatus, 2000);
 
 {% if is_broadcaster %}
-const INGEST_URL         = "{{ url_for('camera.broadcast_proxy') }}";
+const INGEST_URL             = "{{ url_for('camera.broadcast_proxy') }}";
 const BROADCASTER_STATUS_URL = "{{ url_for('camera.broadcaster_status') }}";
-const TARGET_FPS         = 15;
-const JPEG_QUALITY       = 0.7;
+const TARGET_FPS             = 15;
+const JPEG_QUALITY           = 0.7;
 
 let mediaStream   = null;
 let broadcastLoop = null;
 let frameCount    = 0;
 let fpsTimer      = null;
-let ipCheckTimer  = null;   // polls broadcaster-status while live
-let ipWarningShown = false; // prevent repeated modal triggers
 
-const video          = document.getElementById('capture-video');
-const canvas         = document.getElementById('capture-canvas');
-const ctx            = canvas.getContext('2d');
-const startBtn       = null;
-const stopBtn        = document.getElementById('stop-btn');
-const badge          = document.getElementById('broadcast-status-badge');
-const fpsEl          = document.getElementById('broadcast-fps');
-const camSelect      = document.getElementById('camera-select');
-const grantBtn       = document.getElementById('grant-btn');
-const permSection    = document.getElementById('permission-section');
-const controlSection = document.getElementById('controls-section');
-const permError      = document.getElementById('permission-error');
-const ipModal        = null;
-const ipModalStop    = null;
-const ipModalCont    = null;
+const video   = document.getElementById('capture-video');
+const canvas  = document.getElementById('capture-canvas');
+const ctx     = canvas.getContext('2d');
+const stopBtn = document.getElementById('stop-btn');
+const badge   = document.getElementById('broadcast-status-badge');
+const fpsEl   = document.getElementById('broadcast-fps');
 
-// ── IP-removal modal helpers ──────────────────────────────────────────────────
-function showIpWarning() { /* removed */ }
-function hideIpWarning() { /* removed */ }
-
-// ── Broadcaster-status polling (only while live) ──────────────────────────────
-let isBroadcasting = false;  // track whether a broadcast is actively running
-
-function startIpPolling() {
-  ipWarningShown = false;
-  isBroadcasting = true;  // mark broadcast as active before polling starts
-  ipCheckTimer = setInterval(async () => {
-    if (!isBroadcasting) return;  // never fire if no broadcast is running
-    try {
-      const res  = await fetch(BROADCASTER_STATUS_URL);
-      const data = await res.json();
-      if (!data.authorized) {
-        showIpWarning();
-      }
-    } catch (e) { /* network blip — ignore */ }
-  }, 5000);   // check every 5 s
-}
-
-function stopIpPolling() {
-  isBroadcasting = false;  // mark broadcast as stopped before clearing
-  clearInterval(ipCheckTimer);
-  ipCheckTimer = null;
-  hideIpWarning();
-  ipWarningShown = false;
-}
-
-// ── Grant permission ──────────────────────────────────────────────────────────
-grantBtn.addEventListener('click', async () => {
-  grantBtn.disabled = true;
-  grantBtn.textContent = 'Requesting…';
-  permError.style.display = 'none';
-  try {
-    const tmp = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-    tmp.getTracks().forEach(t => t.stop());
-    await populateCameras();
-    permSection.style.display    = 'none';
-    controlSection.style.display = 'block';
-  } catch (err) {
-    grantBtn.disabled = false;
-    grantBtn.textContent = '🎥 Allow Camera Access';
-    permError.style.display = 'block';
-    if (err.name === 'NotAllowedError') {
-      permError.textContent = 'Camera access was denied. Please allow it in your browser settings and try again.';
-    } else if (err.name === 'NotFoundError') {
-      permError.textContent = 'No camera found on this device.';
-    } else {
-      permError.textContent = `Error: ${err.message}`;
-    }
-  }
-});
-
-async function populateCameras() {
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const cams    = devices.filter(d => d.kind === 'videoinput');
-  camSelect.innerHTML = '';
-  cams.forEach((cam, i) => {
-    const opt       = document.createElement('option');
-    opt.value       = cam.deviceId;
-    opt.textContent = cam.label || `Camera ${i + 1}`;
-    camSelect.appendChild(opt);
-  });
-}
-
-// ── Start broadcasting ────────────────────────────────────────────────────────
-startBtn.addEventListener('click', async () => {
-  if (!INGEST_URL) {
-    showToast('Broadcast endpoint is not configured.', 'danger', 7000);
-    return;
-  }
-
-  const deviceId = camSelect.value;
-  const constraints = {
-    video: deviceId
-      ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-      : { width: { ideal: 1280 }, height: { ideal: 720 } },
-    audio: false,
-  };
+// ── Auto-start broadcasting on page load ──────────────────────────────────────
+(async function autoStart() {
+  if (!INGEST_URL) return;
 
   try {
-    mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    });
   } catch (err) {
     showToast(`Could not access camera: ${err.message}`, 'danger');
     return;
@@ -224,25 +129,17 @@ startBtn.addEventListener('click', async () => {
 
   video.srcObject = mediaStream;
 
-  // Wait for video to have real dimensions before starting
   await new Promise(resolve => {
-    video.onloadedmetadata = () => {
-      video.play().then(resolve).catch(resolve);
-    };
+    video.onloadedmetadata = () => { video.play().then(resolve).catch(resolve); };
   });
-  // Extra buffer to ensure first real frame is ready
   await new Promise(resolve => setTimeout(resolve, 500));
 
-  startBtn && (startBtn.style.display = 'none');
   stopBtn.style.display  = '';
   badge.style.background = '#10b981';
   badge.textContent      = 'Broadcasting';
-  camSelect.disabled     = true;
   frameCount = 0;
 
   fpsTimer = setInterval(() => { fpsEl.textContent = `${frameCount} fps`; frameCount = 0; }, 1000);
-
-  startIpPolling();  // begin monitoring IP allow-list status
 
   const interval = Math.round(1000 / TARGET_FPS);
   broadcastLoop = setInterval(() => {
@@ -251,46 +148,35 @@ startBtn.addEventListener('click', async () => {
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0);
     canvas.toBlob(async (blob) => {
-      if (!blob || blob.size < 100) return; // skip empty blobs
+      if (!blob || blob.size < 100) return;
       try {
-        const res = await fetch(INGEST_URL, {
-          method:  'POST',
-          body:    blob,
-        });
+        const res = await fetch(INGEST_URL, { method: 'POST', body: blob });
         if (res.ok) frameCount++;
       } catch (e) {}
     }, 'image/jpeg', JPEG_QUALITY);
   }, interval);
-});
+})();
 
 // ── Stop broadcasting ─────────────────────────────────────────────────────────
 stopBtn.addEventListener('click', async () => {
   clearInterval(broadcastLoop);
   clearInterval(fpsTimer);
-  stopIpPolling();
   broadcastLoop = null;
   if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
   video.srcObject = null;
-  startBtn && (startBtn.style.display = '');
   stopBtn.style.display  = 'none';
   badge.style.background = '#6b7280';
   badge.textContent      = 'Stopped';
   fpsEl.textContent      = '';
-  camSelect.disabled     = false;
 
-  // Clear the frame on the server
   try {
-    await fetch('{{ url_for("camera.clear_broadcast_proxy") }}', {
-      method: 'POST',
-    });
+    await fetch('{{ url_for("camera.clear_broadcast_proxy") }}', { method: 'POST' });
   } catch (e) {}
 
-  // Fully disconnect MJPEG stream so the last frame doesn't linger
   const img = document.getElementById('camera-img');
   if (img) {
     img.src = '';
     img.removeAttribute('src');
-    // Replace the element to kill the open HTTP connection
     const blank = img.cloneNode(false);
     blank.style.background = '#000';
     blank.style.minHeight  = '300px';
