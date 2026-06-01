@@ -63,12 +63,9 @@ def _is_locked_out(ip):
 
 def _is_username_locked(username):
     from sqlalchemy import func
-    from app.utils.username_enc import hash_username
     cutoff = now_pst() - timedelta(minutes=LOCKOUT_MINUTES)
-    # FIX: access logs now store HMAC-hashed usernames — query the hash, not plaintext
-    hashed = hash_username(username)
     failures = AccessLog.query.filter(
-        AccessLog.username_attempted == hashed,
+        AccessLog.username_attempted == username,
         AccessLog.status == "failed",
         AccessLog.timestamp > cutoff,
     ).count()
