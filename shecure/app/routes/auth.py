@@ -134,18 +134,36 @@ def login():
         request.headers.get("X-Forwarded-For", "").split(",")[0].strip(),
         request.headers.get("X-Real-IP", "").strip(),
     ]))
-    _cookie_banned = request.cookies.get("_hp_block") == "1"
-    if _cookie_banned or any(is_ip_blocked(i) for i in _ips_to_check):
-        log_access("unknown", "blocked", reason="Banned IP attempted to access login page")
-        # Render the dead-end page directly — no redirect.
-        # No URL they navigate to will ever show them the login form.
+    _cookie_banned    = request.cookies.get("_hp_block") == "1"
+    _bf_cookie_banned = request.cookies.get("_bf_block") == "1"
+
+    _db_block_type = None
+    for _ci in _ips_to_check:
+        _bt = is_ip_blocked(_ci)
+        if _bt:
+            _db_block_type = _bt
+            break
+
+    _effective_block = _db_block_type or ("honeypot" if _cookie_banned else None) or ("brute_force" if _bf_cookie_banned else None)
+
+    if _effective_block:
+        log_access("unknown", "blocked",
+                   reason=f"Blocked IP attempted to access login page ({_effective_block})")
         _client_ip = (
             request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
             or request.remote_addr or "unknown"
         )
         from flask import make_response as _mkr
-        _resp = _mkr(render_template("errors/banned.html", client_ip=_client_ip), 403)
-        _resp.set_cookie("_hp_block", "1", max_age=86400, httponly=True, samesite="Lax")
+        if _effective_block == "brute_force":
+            _resp = _mkr(render_template("errors/429.html",
+                                         client_ip=_client_ip,
+                                         block_minutes=30,
+                                         block_reason="Too many failed login attempts from this IP."),
+                         429)
+            _resp.set_cookie("_bf_block", "1", max_age=1800, httponly=True, samesite="Lax")
+        else:
+            _resp = _mkr(render_template("errors/banned.html", client_ip=_client_ip), 403)
+            _resp.set_cookie("_hp_block", "1", max_age=86400, httponly=True, samesite="Lax")
         return _resp
 
     if current_user.is_authenticated:
@@ -189,7 +207,10 @@ def login():
             )
             # Block the IP for 30 minutes and notify admin
             from app.utils.security import block_ip
-            block_ip(ip, reason=f"Brute force: {MAX_FAILED_ATTEMPTS}+ failed logins", hours=0.5)
+            block_ip(ip,
+                     reason=f"Brute force: {MAX_FAILED_ATTEMPTS}+ failed logins",
+                     hours=0.5,
+                     block_type="brute_force")
             send_ip_blocked_alert(
                 ip=ip,
                 user_agent=ua,
@@ -681,17 +702,20 @@ def debug_ip():
     xri = request.headers.get("X-Real-IP", "")
     xff_first = xff.split(",")[0].strip() if xff else ""
     all_blocked = BlockedIP.query.filter_by(is_active=True).all()
-    cookie = request.cookies.get("_hp_block", "NOT SET")
+    cookie_hp = request.cookies.get("_hp_block", "NOT SET")
+    cookie_bf = request.cookies.get("_bf_block", "NOT SET")
     return jsonify({
         "remote_addr":       remote,
         "x_forwarded_for":   xff,
         "x_real_ip":         xri,
         "xff_first":         xff_first,
-        "cookie_hp_block":   cookie,
-        "is_blocked_remote": is_ip_blocked(remote),
+        "cookie_hp_block":   cookie_hp,
+        "cookie_bf_block":   cookie_bf,
+        "is_blocked_remote": is_ip_blocked(remote),   # returns block_type str or None
         "is_blocked_xff":    is_ip_blocked(xff_first),
         "blocked_ips_in_db": [
-            {"ip": b.ip_address, "reason": b.reason, "expires_at": str(b.expires_at)}
+            {"ip": b.ip_address, "reason": b.reason,
+             "block_type": b.block_type, "expires_at": str(b.expires_at)}
             for b in all_blocked
         ],
     })
