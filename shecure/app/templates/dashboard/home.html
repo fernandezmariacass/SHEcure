@@ -54,10 +54,10 @@
         </colgroup>
         <thead>
           <tr>
-            <th scope="col">IP Address</th>
-            <th scope="col">User</th>
-            <th scope="col">Action</th>
-            <th scope="col">Time (PST)</th>
+            <th scope="col" style="padding:1.1rem 1.2rem">IP Address</th>
+            <th scope="col" style="padding:1.1rem 1.2rem">User</th>
+            <th scope="col" style="padding:1.1rem 1.2rem">Action</th>
+            <th scope="col" style="padding:1.1rem 1.2rem">Time (PST)</th>
           </tr>
         </thead>
         <tbody id="live-activity-feed">
@@ -76,7 +76,7 @@
       <h2 class="card-title">Security Alerts</h2>
     </div>
     <div style="overflow-x:hidden"><table style="width:100%;table-layout:fixed"><thead><tr>
-      <th scope="col">{% if alert_count > 0 %}<span class="badge badge-danger" id="alert-badge">{{ alert_count }} unresolved</span>{% else %}<span class="badge badge-success" id="alert-badge">All clear</span>{% endif %}</th>
+      <th scope="col" style="padding:.85rem 1.2rem">{% if alert_count > 0 %}<span class="badge badge-danger" id="alert-badge">{{ alert_count }} unresolved</span>{% else %}<span class="badge badge-success" id="alert-badge">All clear</span>{% endif %}</th>
     </tr></thead></table></div>
     <div class="card-body">
       <div id="alert-feed">
