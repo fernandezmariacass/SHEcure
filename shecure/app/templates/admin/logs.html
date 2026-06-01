@@ -24,7 +24,7 @@
         <tr>
           <th scope="col">ID</th>
           <th scope="col">Timestamp (PST)</th>
-          <th scope="col">Username <small style="font-weight:400;color:var(--gray-400);font-size:.75rem">(hashed)</small></th>
+          <th scope="col">Username</th>
           <th scope="col">IP Address</th>
           <th scope="col">Status</th>
           <th scope="col">Reason</th>
@@ -38,7 +38,7 @@
           <td class="text-mono" style="font-size:.78rem">
             <span data-utc="{{ log.timestamp.isoformat() }}">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</span>
           </td>
-          <td style="font-family:monospace;font-size:.75rem;color:var(--gray-400);word-break:break-all">{{ log.username_attempted or '—' }}</td>
+          <td style="font-size:.85rem;word-break:break-all">{{ log.user.username if log.user else (log.username_attempted or '—') }}</td>
           <td class="text-mono" style="font-size:.82rem;word-break:break-all">{{ log.ip_address }}</td>
           <td>
             <span class="badge {% if log.status == 'success' %}badge-success{% elif log.status == 'blocked' %}badge-danger{% elif log.status == 'logout' %}badge-info{% else %}badge-warning{% endif %} badge-dot">
