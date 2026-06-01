@@ -16,11 +16,13 @@
     <div class="camera-container" style="max-height:320px">
       <img src="" class="camera-feed"
         alt="Live camera feed" id="dashboard-cam"
-        style="display:none" />
+        style="opacity:0;transition:opacity 0.3s" />
       <div id="dashboard-cam-offline" style="
+          position:absolute;inset:0;
           display:flex;align-items:center;justify-content:center;
           min-height:180px;background:#111;border-radius:8px;
-          color:rgba(255,255,255,.4);font-size:.9rem;gap:.5rem">
+          color:rgba(255,255,255,.4);font-size:.9rem;gap:.5rem;
+          transition:opacity 0.3s">
         <span aria-hidden="true">⏾</span> Waiting for broadcaster…
       </div>
       <div class="camera-overlay" aria-hidden="true">
@@ -202,50 +204,37 @@ setInterval(pollStatus, 2000);
   const img        = document.getElementById('dashboard-cam');
   const offline    = document.getElementById('dashboard-cam-offline');
   const statusText = document.getElementById('camera-status-text');
-  let   isAttached    = false;
-  let   offlineStrikes = 0;
-  const OFFLINE_THRESHOLD = 3;
+  let   isAttached = false;
 
-  // Set src exactly once — reassigning it tears down the MJPEG connection
-  // and causes a visible blink even if the URL is identical.
+  // Attach the stream once — never detach while the preview is visible.
+  // Reassigning src or toggling display tears down the MJPEG connection
+  // and causes the black flash. Once live, we trust the stream itself;
+  // we only use the status endpoint to decide when to first attach.
   function attachStream() {
     if (!img || isAttached) return;
-    img.src = STREAM_URL;
-    img.style.display = '';
-    if (offline) offline.style.display = 'none';
     isAttached = true;
-  }
-
-  function detachStream() {
-    if (!img || !isAttached) return;
-    img.src = '';
-    img.style.display = 'none';
-    if (offline) offline.style.display = 'flex';
-    isAttached = false;
+    img.onload = function () {
+      img.style.opacity = '1';
+      if (offline) offline.style.opacity = '0';
+      if (statusText) statusText.textContent = 'LIVE';
+    };
+    img.src = STREAM_URL;
   }
 
   function checkCameraStatus() {
+    // Once attached, stop polling — the stream speaks for itself.
+    if (isAttached) return;
     fetch(STATUS_URL)
       .then(r => r.json())
       .then(data => {
         if (data.online) {
-          offlineStrikes = 0;
-          if (statusText) statusText.textContent = 'LIVE';
           attachStream();
         } else {
-          offlineStrikes++;
-          if (offlineStrikes >= OFFLINE_THRESHOLD) {
-            if (statusText) statusText.textContent = 'WAITING';
-            detachStream();
-          }
+          if (statusText) statusText.textContent = 'WAITING';
         }
       })
       .catch(() => {
-        offlineStrikes++;
-        if (offlineStrikes >= OFFLINE_THRESHOLD) {
-          if (statusText) statusText.textContent = 'UNKNOWN';
-          detachStream();
-        }
+        if (statusText) statusText.textContent = 'WAITING';
       });
   }
 
