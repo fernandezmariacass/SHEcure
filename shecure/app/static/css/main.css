@@ -1126,3 +1126,6 @@ input[type="checkbox"] {
   word-break: break-all;
   overflow-wrap: break-word;
 }
+
+/* Dashboard activity row — all rows same height */
+.logs-table tbody tr td { vertical-align: middle; }
