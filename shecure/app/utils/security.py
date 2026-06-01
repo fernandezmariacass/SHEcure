@@ -39,11 +39,13 @@ _ACTION_MAP = [
     ("POST", r"^/camera/ingest",               "Camera frame received"),
 ]
 
-def _get_action_label(method, path):
+def _get_action_label(method, path, is_authenticated=False):
     for m, pattern, label in _ACTION_MAP:
         if method == m and re.match(pattern, path):
             return label
     if method == "GET":
+        if not is_authenticated:
+            return f"Attempted to visit {path}"
         return f"Viewed {path}"
     if method == "POST":
         return f"Submitted {path}"
@@ -210,7 +212,7 @@ def log_activity(description=None, suspicious=False, action=None, username=None,
                 pass
         path = request.path
         method = request.method
-        resolved_action = action or _get_action_label(method, path)
+        resolved_action = action or _get_action_label(method, path, is_authenticated=current_user.is_authenticated)
         entry = ActivityLog(
             user_id=uid,
             username=uname,
