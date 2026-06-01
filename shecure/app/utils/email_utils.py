@@ -65,6 +65,134 @@ def _wrap(heading, color, body_html):
     """
 
 
+# ── User-Agent parser ─────────────────────────────────────────────────────────
+
+def parse_device(user_agent: str) -> str:
+    """
+    Convert a raw User-Agent string into a human-readable device description.
+    Returns e.g. "Chrome 148 on Windows 10 (Desktop)" or
+                 "Safari on iPhone (iOS 17) — Mobile".
+    Falls back to the raw UA (truncated) if nothing matches.
+    """
+    import re
+    ua = user_agent or ""
+
+    # ── Bot / crawler short-circuit ───────────────────────────────────────
+    if re.search(r"bot|crawl|spider|slurp|facebookexternalhit|python-requests|curl|wget|httpclient",
+                 ua, re.I):
+        name = re.search(r"^[^\s/]+", ua)
+        return f"Bot / Crawler ({name.group(0) if name else 'unknown'})"
+
+    # ── OS detection ──────────────────────────────────────────────────────
+    os_name = "Unknown OS"
+    if re.search(r"Windows NT 10", ua):
+        os_name = "Windows 10/11"
+    elif re.search(r"Windows NT 6\.3", ua):
+        os_name = "Windows 8.1"
+    elif re.search(r"Windows NT 6\.1", ua):
+        os_name = "Windows 7"
+    elif re.search(r"Windows", ua, re.I):
+        os_name = "Windows"
+    elif re.search(r"iPhone", ua):
+        m = re.search(r"CPU iPhone OS ([\d_]+)", ua)
+        ver = m.group(1).replace("_", ".") if m else ""
+        os_name = f"iOS {ver}" if ver else "iOS"
+    elif re.search(r"iPad", ua):
+        m = re.search(r"CPU OS ([\d_]+)", ua)
+        ver = m.group(1).replace("_", ".") if m else ""
+        os_name = f"iPadOS {ver}" if ver else "iPadOS"
+    elif re.search(r"Android", ua):
+        m = re.search(r"Android ([\d.]+)", ua)
+        ver = m.group(1) if m else ""
+        os_name = f"Android {ver}" if ver else "Android"
+    elif re.search(r"Mac OS X", ua):
+        m = re.search(r"Mac OS X ([\d_]+)", ua)
+        ver = m.group(1).replace("_", ".") if m else ""
+        os_name = f"macOS {ver}" if ver else "macOS"
+    elif re.search(r"Linux", ua):
+        os_name = "Linux"
+    elif re.search(r"CrOS", ua):
+        os_name = "Chrome OS"
+
+    # ── Device brand / model (mobile) ─────────────────────────────────────
+    device_brand = ""
+    if re.search(r"iPhone", ua):
+        device_brand = "iPhone"
+    elif re.search(r"iPad", ua):
+        device_brand = "iPad"
+    else:
+        # Android device model sits between "; " and " Build" or ")"
+        m = re.search(r";\s*([^;)]+?)\s+Build/", ua)
+        if m:
+            model = m.group(1).strip()
+            # Rough brand map
+            brand_map = {
+                "SM-": "Samsung", "Pixel": "Google", "Redmi": "Xiaomi",
+                "Mi ": "Xiaomi", "POCO": "Xiaomi", "HUAWEI": "Huawei",
+                "HW-": "Huawei", "HONOR": "Honor", "moto": "Motorola",
+                "XT": "Motorola", "LM-": "LG", "LG-": "LG",
+                "Nokia": "Nokia", "HTC": "HTC", "OnePlus": "OnePlus",
+                "ONEPLUS": "OnePlus", "vivo": "Vivo", "OPPO": "OPPO",
+                "CPH": "OPPO", "realme": "Realme", "RMX": "Realme",
+                "Infinix": "Infinix", "Tecno": "Tecno", "itel": "itel",
+            }
+            for prefix, brand in brand_map.items():
+                if model.upper().startswith(prefix.upper()) or model.lower().startswith(prefix.lower()):
+                    device_brand = f"{brand} ({model})"
+                    break
+            if not device_brand and model:
+                device_brand = model
+
+    # ── Browser detection ─────────────────────────────────────────────────
+    browser = "Unknown Browser"
+    # Order matters: check specific browsers before generic WebKit/Gecko
+    if re.search(r"Edg/|Edge/", ua):
+        m = re.search(r"Edg(?:e)?/([\d.]+)", ua)
+        browser = f"Microsoft Edge {m.group(1).split('.')[0]}" if m else "Microsoft Edge"
+    elif re.search(r"OPR/|Opera/", ua):
+        m = re.search(r"(?:OPR|Opera)/([\d.]+)", ua)
+        browser = f"Opera {m.group(1).split('.')[0]}" if m else "Opera"
+    elif re.search(r"SamsungBrowser/", ua):
+        m = re.search(r"SamsungBrowser/([\d.]+)", ua)
+        browser = f"Samsung Internet {m.group(1).split('.')[0]}" if m else "Samsung Internet"
+    elif re.search(r"YaBrowser/", ua):
+        browser = "Yandex Browser"
+    elif re.search(r"UCBrowser/", ua):
+        browser = "UC Browser"
+    elif re.search(r"FBAV/|FBAN/", ua):
+        browser = "Facebook In-App Browser"
+    elif re.search(r"Instagram", ua):
+        browser = "Instagram In-App Browser"
+    elif re.search(r"Chrome/", ua) and not re.search(r"Chromium/", ua):
+        m = re.search(r"Chrome/([\d.]+)", ua)
+        browser = f"Chrome {m.group(1).split('.')[0]}" if m else "Chrome"
+    elif re.search(r"Chromium/", ua):
+        m = re.search(r"Chromium/([\d.]+)", ua)
+        browser = f"Chromium {m.group(1).split('.')[0]}" if m else "Chromium"
+    elif re.search(r"Firefox/", ua):
+        m = re.search(r"Firefox/([\d.]+)", ua)
+        browser = f"Firefox {m.group(1).split('.')[0]}" if m else "Firefox"
+    elif re.search(r"Safari/", ua) and re.search(r"Version/", ua):
+        m = re.search(r"Version/([\d.]+)", ua)
+        browser = f"Safari {m.group(1).split('.')[0]}" if m else "Safari"
+    elif re.search(r"Safari/", ua):
+        browser = "Safari"
+
+    # ── Device type ───────────────────────────────────────────────────────
+    if re.search(r"Mobi|Android|iPhone|iPad|tablet", ua, re.I):
+        device_type = "Mobile" if not re.search(r"iPad|tablet", ua, re.I) else "Tablet"
+    else:
+        device_type = "Desktop"
+
+    # ── Assemble ──────────────────────────────────────────────────────────
+    parts = [browser, "on"]
+    if device_brand:
+        parts.append(device_brand)
+    parts.append(f"({os_name})")
+    parts.append(f"— {device_type}")
+    return " ".join(parts)
+
+
 # ── Fingerprint helpers ───────────────────────────────────────────────────────
 
 def build_login_fingerprint(ip: str, user_agent: str) -> str:
@@ -179,7 +307,7 @@ def send_failed_login_alert(username_attempted: str, ip: str, user_agent: str,
     <table style='{_TABLE_STYLE}'>
       {_row("Username", f"<strong>{username_attempted}</strong>")}
       {_row("IP address", ip)}
-      {_row("Device", user_agent[:120])}
+      {_row("Device", f"{parse_device(user_agent)}<br><span style='font-size:11px;color:#999'>UA: {user_agent[:120]}</span>")}
       {_row("Time (PST)", timestamp)}
       {_row("Reason", reason)}
     </table>
@@ -200,7 +328,7 @@ def send_lockout_alert(username_attempted: str, ip: str, user_agent: str,
     <table style='{_TABLE_STYLE}'>
       {_row("Username", f"<strong>{username_attempted}</strong>")}
       {_row("IP address", ip)}
-      {_row("Device", user_agent[:120])}
+      {_row("Device", f"{parse_device(user_agent)}<br><span style='font-size:11px;color:#999'>UA: {user_agent[:120]}</span>")}
       {_row("Time (PST)", timestamp)}
       {_row("Lockout type", lockout_type)}
     </table>
@@ -230,7 +358,7 @@ def send_successful_login_alert(user, ip: str, user_agent: str,
     <table style='{_TABLE_STYLE}'>
       {_row("Username", f"<strong>{user.username}</strong>")}
       {_row("IP address", ip)}
-      {_row("Device", user_agent[:120])}
+      {_row("Device", f"{parse_device(user_agent)}<br><span style='font-size:11px;color:#999'>UA: {user_agent[:120]}</span>")}
       {_row("Time (PST)", timestamp)}
     </table>
     <p>{device_note}<br>
@@ -252,7 +380,7 @@ def send_bot_blocked_alert(username_attempted: str, ip: str, user_agent: str,
     <table style='{_TABLE_STYLE}'>
       {_row("Username attempted", username_attempted or "(none)")}
       {_row("IP address", ip)}
-      {_row("Device", user_agent[:120])}
+      {_row("Device", f"{parse_device(user_agent)}<br><span style='font-size:11px;color:#999'>UA: {user_agent[:120]}</span>")}
       {_row("Time (PST)", timestamp)}
     </table>
     <p>A login attempt was blocked because it failed reCAPTCHA verification.<br>
@@ -272,7 +400,7 @@ def send_honeypot_alert(username_attempted: str, ip: str, user_agent: str,
     <table style='{_TABLE_STYLE}'>
       {_row("Username attempted", f"<strong>{username_attempted}</strong>")}
       {_row("IP address", f"<strong style='color:#b71c1c'>{ip}</strong>")}
-      {_row("Device", user_agent[:120])}
+      {_row("Device", f"{parse_device(user_agent)}<br><span style='font-size:11px;color:#999'>UA: {user_agent[:120]}</span>")}
       {_row("Time (PST)", timestamp)}
     </table>
     <p><strong>The honeypot canary password was used.</strong> This strongly indicates
@@ -320,7 +448,7 @@ def send_ip_blocked_alert(ip: str, user_agent: str, timestamp: str,
         return
     subject = f"SHEcure — IP Blocked: {ip}"
     duration_str = f"{block_duration_minutes} minutes"
-    device_str = user_agent[:120] if user_agent else "Unknown"
+    device_str = f"{parse_device(user_agent)}<br><span style='font-size:11px;color:#999'>UA: {user_agent[:120]}</span>" if user_agent else "Unknown"
     user_str = username_attempted if username_attempted else "Unknown"
     table = f"""
     <table style='{_TABLE_STYLE}'>
@@ -347,7 +475,7 @@ def send_unapproved_login_attempt(username_attempted: str, ip: str, user_agent: 
     <table style='{_TABLE_STYLE}'>
       {_row("Username", f"<strong>{username_attempted}</strong>")}
       {_row("IP address", ip)}
-      {_row("Device", user_agent[:120])}
+      {_row("Device", f"{parse_device(user_agent)}<br><span style='font-size:11px;color:#999'>UA: {user_agent[:120]}</span>")}
       {_row("Time (PST)", timestamp)}
     </table>
     <p>A user whose account is pending approval attempted to log in.<br>
