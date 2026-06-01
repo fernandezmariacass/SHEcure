@@ -205,7 +205,7 @@ def ingest():
 @login_required
 def status():
     _, ts = _get_frame()
-    online = (time.time() - ts) < 5
+    online = (time.time() - ts) < 10
     return jsonify({"online": online})
 
 
