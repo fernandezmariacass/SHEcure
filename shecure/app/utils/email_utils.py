@@ -312,6 +312,31 @@ def send_2fa_reset_email(user, admin_username: str, timestamp: str,
     _send_async(user.email, subject, html)
 
 
+def send_ip_blocked_alert(ip: str, user_agent: str, timestamp: str,
+                          username_attempted: str = "", block_duration_minutes: int = 30) -> None:
+    """Email the admin when an IP is automatically blocked after repeated failed logins."""
+    to = _alert_email()
+    if not to:
+        return
+    subject = f"SHEcure — IP Blocked: {ip}"
+    duration_str = f"{block_duration_minutes} minutes"
+    device_str = user_agent[:120] if user_agent else "Unknown"
+    user_str = username_attempted if username_attempted else "Unknown"
+    table = f"""
+    <table style='{_TABLE_STYLE}'>
+      {_row("Blocked IP", f"<strong style='color:#b71c1c'>{ip}</strong>")}
+      {_row("Blocked At", timestamp)}
+      {_row("Block Duration", duration_str)}
+      {_row("Username Attempted", user_str)}
+      {_row("Device / User Agent", device_str)}
+    </table>
+    <p>An IP was automatically blocked after <strong>5</strong> consecutive failed login attempts.<br>
+       No secrets, tokens, or credentials are included in this notification.</p>
+    """
+    html = _wrap("⚠️ IP Address Blocked", "#b71c1c", table)
+    _send_async(to, subject, html)
+
+
 def send_unapproved_login_attempt(username_attempted: str, ip: str, user_agent: str,
                                    timestamp: str) -> None:
     to = _alert_email()
