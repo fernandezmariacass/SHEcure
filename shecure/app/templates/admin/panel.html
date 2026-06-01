@@ -212,6 +212,7 @@
         <thead>
           <tr style="border-bottom:1px solid var(--gray-200)">
             <th style="padding:.75rem 1rem;text-align:left">IP Address</th>
+            <th style="padding:.75rem 1rem;text-align:left">Block Type</th>
             <th style="padding:.75rem 1rem;text-align:left">Banned At (PST)</th>
             <th style="padding:.75rem 1rem;text-align:left">Expires (PST)</th>
             <th style="padding:.75rem 1rem;text-align:left">Reason</th>
@@ -223,6 +224,15 @@
           {% for b in blocked %}
           <tr style="border-bottom:1px solid var(--gray-100);{% if not b.is_currently_blocked() %}opacity:.5{% endif %}">
             <td style="padding:.75rem 1rem;font-family:monospace"><span class="ip-chip">{{ b.ip_address }}</span></td>
+            <td style="padding:.75rem 1rem">
+              {% if b.block_type == 'brute_force' %}
+                <span style="background:#fff8e1;color:#7a4a00;border:1px solid #ffd580;padding:.2rem .6rem;border-radius:9999px;font-size:.8rem;font-weight:600">⏳ Brute Force (30 min)</span>
+              {% elif b.block_type == 'honeypot' %}
+                <span style="background:#fff0f7;color:#9c1261;border:1px solid #ffadd7;padding:.2rem .6rem;border-radius:9999px;font-size:.8rem;font-weight:600">🚫 Honeypot (24 h)</span>
+              {% else %}
+                <span style="background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:.2rem .6rem;border-radius:9999px;font-size:.8rem;font-weight:600">🔒 {{ b.block_type or 'admin' }}</span>
+              {% endif %}
+            </td>
             <td style="padding:.75rem 1rem">{{ b.blocked_at.strftime('%Y-%m-%d %H:%M') }} PST</td>
             <td style="padding:.75rem 1rem">
               {% if b.expires_at %}{{ b.expires_at.strftime('%Y-%m-%d %H:%M') }} PST
