@@ -52,24 +52,37 @@ def _verify_recaptcha(token):
 # ── Brute-force lockout ───────────────────────────────────────────────────────
 
 def _is_locked_out(ip):
-    cutoff = now_pst() - timedelta(minutes=LOCKOUT_MINUTES)
+    # Look back 2x the lockout window to find the 3rd failure
+    lookback = now_pst() - timedelta(minutes=LOCKOUT_MINUTES * 2)
     failures = AccessLog.query.filter(
         AccessLog.ip_address == ip,
         AccessLog.status == "failed",
-        AccessLog.timestamp > cutoff,
-    ).count()
-    return failures >= MAX_FAILED_ATTEMPTS
+        AccessLog.timestamp > lookback,
+    ).order_by(AccessLog.timestamp.desc()).all()
+
+    if len(failures) < MAX_FAILED_ATTEMPTS:
+        return False
+
+    # Timestamp of the 3rd most recent failure = when the lock was triggered
+    third_failure_time = failures[MAX_FAILED_ATTEMPTS - 1].timestamp
+    return now_pst() < third_failure_time + timedelta(minutes=LOCKOUT_MINUTES)
 
 
 def _is_username_locked(username):
-    from sqlalchemy import func
-    cutoff = now_pst() - timedelta(minutes=LOCKOUT_MINUTES)
+    # Look back 2x the lockout window to find the 3rd failure
+    lookback = now_pst() - timedelta(minutes=LOCKOUT_MINUTES * 2)
     failures = AccessLog.query.filter(
         AccessLog.username_attempted == username,
         AccessLog.status == "failed",
-        AccessLog.timestamp > cutoff,
-    ).count()
-    return failures >= MAX_FAILED_ATTEMPTS
+        AccessLog.timestamp > lookback,
+    ).order_by(AccessLog.timestamp.desc()).all()
+
+    if len(failures) < MAX_FAILED_ATTEMPTS:
+        return False
+
+    # Timestamp of the 3rd most recent failure = when the lock was triggered
+    third_failure_time = failures[MAX_FAILED_ATTEMPTS - 1].timestamp
+    return now_pst() < third_failure_time + timedelta(minutes=LOCKOUT_MINUTES)
 
 
 # ── Safe redirect ─────────────────────────────────────────────────────────────
