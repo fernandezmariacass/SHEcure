@@ -7,8 +7,18 @@ import os
 # Philippine Standard Time = UTC+8
 PST = timezone(timedelta(hours=8))
 
-# Encryption key from environment variable
-secret = os.environ.get("DB_ENCRYPTION_KEY", "")
+# IMPORTANT: secret must be a *callable* (lambda), not a plain string.
+#
+# `StringEncryptedType` accepts either a string key or a zero-argument callable
+# that returns the key.  When it is a plain string it is evaluated ONCE at class
+# definition time — i.e. at import time, before create_app() has loaded .env or
+# validated env vars.  At that moment DB_ENCRYPTION_KEY is always "" (empty),
+# so every encrypted column is initialised with an empty key, and any read/write
+# raises a cryptography error → 500.
+#
+# Using a lambda defers the key lookup to the moment each row is actually
+# read from or written to the database, by which point the env var is set.
+secret = lambda: os.environ.get("DB_ENCRYPTION_KEY", "")
 
 
 def now_pst():
