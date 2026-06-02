@@ -7,6 +7,11 @@ Handles:
   • Successful login from any device (always, not just new devices)
   • Account not yet approved attempts
   • reCAPTCHA / bot-blocked attempts
+  • Suspicious camera frame pushes
+  • Suspicious movement detected by the camera agent
+
+Every admin-facing alert function also writes an UnauthorizedAlert row so the
+event appears in the Security Alerts tab without any extra call-site changes.
 
 SETUP (Railway Dashboard → Variables)
 --------------------------------------
@@ -19,6 +24,12 @@ WHY BREVO:
   Brevo's HTTP API uses port 443 (always open) and allows sending
   from any email address without domain verification.
   Free tier: 300 emails/day, 9,000/month.
+
+NOTE ON SENDER = RECIPIENT (shecureemailservice@gmail.com):
+  Brevo rejects a message whose sender address also appears in the To list.
+  _send_email automatically filters out the sender from the recipient list, so
+  if all admin accounts share that address the email is silently skipped but
+  the UnauthorizedAlert DB row is still written.
 """
 
 import os
@@ -77,13 +88,11 @@ def parse_device(user_agent: str) -> str:
     import re
     ua = user_agent or ""
 
-    # ── Bot / crawler short-circuit ───────────────────────────────────────
     if re.search(r"bot|crawl|spider|slurp|facebookexternalhit|python-requests|curl|wget|httpclient",
                  ua, re.I):
         name = re.search(r"^[^\s/]+", ua)
         return f"Bot / Crawler ({name.group(0) if name else 'unknown'})"
 
-    # ── OS detection ──────────────────────────────────────────────────────
     os_name = "Unknown OS"
     if re.search(r"Windows NT 10", ua):
         os_name = "Windows 10/11"
@@ -114,18 +123,15 @@ def parse_device(user_agent: str) -> str:
     elif re.search(r"CrOS", ua):
         os_name = "Chrome OS"
 
-    # ── Device brand / model (mobile) ─────────────────────────────────────
     device_brand = ""
     if re.search(r"iPhone", ua):
         device_brand = "iPhone"
     elif re.search(r"iPad", ua):
         device_brand = "iPad"
     else:
-        # Android device model sits between "; " and " Build" or ")"
         m = re.search(r";\s*([^;)]+?)\s+Build/", ua)
         if m:
             model = m.group(1).strip()
-            # Rough brand map
             brand_map = {
                 "SM-": "Samsung", "Pixel": "Google", "Redmi": "Xiaomi",
                 "Mi ": "Xiaomi", "POCO": "Xiaomi", "HUAWEI": "Huawei",
@@ -143,9 +149,7 @@ def parse_device(user_agent: str) -> str:
             if not device_brand and model:
                 device_brand = model
 
-    # ── Browser detection ─────────────────────────────────────────────────
     browser = "Unknown Browser"
-    # Order matters: check specific browsers before generic WebKit/Gecko
     if re.search(r"Edg/|Edge/", ua):
         m = re.search(r"Edg(?:e)?/([\d.]+)", ua)
         browser = f"Microsoft Edge {m.group(1).split('.')[0]}" if m else "Microsoft Edge"
@@ -178,13 +182,11 @@ def parse_device(user_agent: str) -> str:
     elif re.search(r"Safari/", ua):
         browser = "Safari"
 
-    # ── Device type ───────────────────────────────────────────────────────
     if re.search(r"Mobi|Android|iPhone|iPad|tablet", ua, re.I):
         device_type = "Mobile" if not re.search(r"iPad|tablet", ua, re.I) else "Tablet"
     else:
         device_type = "Desktop"
 
-    # ── Assemble ──────────────────────────────────────────────────────────
     parts = [browser, "on"]
     if device_brand:
         parts.append(device_brand)
@@ -207,6 +209,51 @@ def is_new_fingerprint(user, ip: str, user_agent: str) -> bool:
     return user.last_login_fingerprint != current
 
 
+# ── UnauthorizedAlert logger ──────────────────────────────────────────────────
+
+def _log_alert(
+    alert_type: str,
+    ip: str,
+    user_agent: str = "",
+    endpoint: str = "",
+    method: str = "POST",
+    threat_score: int = 50,
+    threat_reason: str = "",
+    notes: str = "",
+    username_attempted: str = "",
+) -> None:
+    """Write an UnauthorizedAlert row to the database.
+
+    Called internally by every admin-facing alert function so that each
+    security event appears in the Security Alerts tab automatically.
+    Errors are swallowed so a DB hiccup never blocks the email path.
+    """
+    try:
+        from app import db
+        from app.models.logs import UnauthorizedAlert
+        alert = UnauthorizedAlert(
+            alert_type=alert_type,
+            ip_address=ip or "unknown",
+            user_agent=(user_agent or "")[:512],
+            endpoint=endpoint or "",
+            method=method,
+            threat_score=threat_score,
+            threat_reason=threat_reason or "",
+            notes=notes or "",
+            username_attempted=username_attempted or "",
+            resolved=False,
+        )
+        db.session.add(alert)
+        db.session.commit()
+    except Exception as exc:
+        log.warning("_log_alert DB write failed (%s): %s", alert_type, exc)
+        try:
+            from app import db as _db
+            _db.session.rollback()
+        except Exception:
+            pass
+
+
 # ── Low-level send via Brevo HTTP API ─────────────────────────────────────────
 
 def _parse_from_addr(mail_from: str):
@@ -218,8 +265,14 @@ def _parse_from_addr(mail_from: str):
     return "SHEcure", mail_from.strip()
 
 
-def _send_email(to_address: str, subject: str, html_body: str) -> None:
-    """Send email via Brevo (formerly Sendinblue) HTTP API."""
+def _send_email(to_address, subject: str, html_body: str) -> None:
+    """Send email via Brevo (formerly Sendinblue) HTTP API.
+
+    ``to_address`` may be a single address string or a list of address strings.
+    Duplicates (case-insensitive) are collapsed before sending.
+    Brevo rejects messages where sender == recipient, so the MAIL_FROM address
+    is automatically filtered out from the To list.
+    """
     api_key   = os.environ.get("BREVO_API_KEY", "")
     mail_from = os.environ.get("MAIL_FROM", "SHEcure <shecureemailservice@gmail.com>")
 
@@ -227,15 +280,42 @@ def _send_email(to_address: str, subject: str, html_body: str) -> None:
         log.warning("Email NOT sent — BREVO_API_KEY is not set. Subject: %s", subject)
         return
 
-    if not to_address:
+    # Normalise to a deduplicated list
+    if isinstance(to_address, str):
+        recipients = [to_address] if to_address else []
+    else:
+        recipients = list(to_address)
+
+    seen: set = set()
+    unique_recipients = []
+    for addr in recipients:
+        if addr and addr.lower() not in seen:
+            seen.add(addr.lower())
+            unique_recipients.append(addr)
+
+    if not unique_recipients:
         log.warning("Email NOT sent — no recipient address. Subject: %s", subject)
         return
 
     sender_name, sender_email = _parse_from_addr(mail_from)
 
+    # Brevo forbids sender appearing in To
+    to_list = [
+        {"email": addr} for addr in unique_recipients
+        if addr.lower() != sender_email.lower()
+    ]
+
+    if not to_list:
+        log.warning(
+            "Email NOT sent — all recipients match the Brevo sender (%s). "
+            "The alert was still logged in the database. Subject: %s",
+            sender_email, subject,
+        )
+        return
+
     payload = json.dumps({
         "sender":      {"name": sender_name, "email": sender_email},
-        "to":          [{"email": to_address}],
+        "to":          to_list,
         "subject":     subject,
         "htmlContent": html_body,
     }).encode("utf-8")
@@ -253,7 +333,11 @@ def _send_email(to_address: str, subject: str, html_body: str) -> None:
 
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
-            log.info("Email sent via Brevo → %s | %s", to_address, subject)
+            log.info(
+                "Email sent via Brevo → %s | %s",
+                ", ".join(r["email"] for r in to_list),
+                subject,
+            )
 
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
@@ -271,10 +355,10 @@ def _send_email(to_address: str, subject: str, html_body: str) -> None:
         log.error("Email send failed (unexpected): %s\n%s", exc, traceback.format_exc())
 
 
-def _send_async(to_address: str, subject: str, html_body: str) -> None:
-    """
-    Send email asynchronously using gevent (compatible with gunicorn+gevent workers).
-    Falls back to a regular thread if gevent is not available.
+def _send_async(to_address, subject: str, html_body: str) -> None:
+    """Send email asynchronously (gevent if available, otherwise threading).
+
+    ``to_address`` may be a single address string or a list of address strings.
     """
     try:
         import gevent
@@ -288,18 +372,49 @@ def _send_async(to_address: str, subject: str, html_body: str) -> None:
         ).start()
 
 
-def _alert_email() -> str:
-    """Return the security alert destination (admin or fallback to MAIL_FROM address)."""
+# ── Admin recipient resolution ────────────────────────────────────────────────
+
+def _alert_emails() -> list:
+    """Return all admin email addresses for security alerts.
+
+    Priority:
+      1. DB query — every User with role='admin' that has an email.
+      2. ALERT_EMAIL env-var (comma-separated list supported).
+      3. MAIL_FROM sender address as last resort.
+
+    Always returns a list (possibly empty).
+    """
+    try:
+        from app.models.user import User
+        admins = User.query.filter_by(role="admin").all()
+        emails = [u.email for u in admins if u.email]
+        if emails:
+            return emails
+    except Exception as exc:
+        log.warning("Could not query admin emails from DB: %s", exc)
+
+    alert_env = os.environ.get("ALERT_EMAIL", "")
+    if alert_env:
+        parsed = [e.strip() for e in alert_env.split(",") if e.strip()]
+        if parsed:
+            return parsed
+
     mail_from = os.environ.get("MAIL_FROM", "")
     _, sender_email = _parse_from_addr(mail_from)
-    return os.environ.get("ALERT_EMAIL", sender_email)
+    return [sender_email] if sender_email else []
+
+
+def _alert_email() -> str:
+    """Backward-compat shim — returns the first alert email as a string."""
+    emails = _alert_emails()
+    return emails[0] if emails else ""
 
 
 # ── Public helpers ────────────────────────────────────────────────────────────
 
 def send_failed_login_alert(username_attempted: str, ip: str, user_agent: str,
                              timestamp: str, reason: str, user=None) -> None:
-    to = user.email if user else _alert_email()
+    to = user.email if user else _alert_emails()
     if not to:
         return
     subject = "SHEcure — Failed login attempt on your account"
@@ -320,7 +435,7 @@ def send_failed_login_alert(username_attempted: str, ip: str, user_agent: str,
 
 def send_lockout_alert(username_attempted: str, ip: str, user_agent: str,
                         timestamp: str, lockout_type: str, user=None) -> None:
-    to = user.email if user else _alert_email()
+    to = user.email if user else _alert_emails()
     if not to:
         return
     subject = "SHEcure — Account locked out due to repeated failures"
@@ -372,7 +487,7 @@ def send_successful_login_alert(user, ip: str, user_agent: str,
 
 def send_bot_blocked_alert(username_attempted: str, ip: str, user_agent: str,
                             timestamp: str) -> None:
-    to = _alert_email()
+    to = _alert_emails()
     if not to:
         return
     subject = "SHEcure — Bot/automated login attempt blocked"
@@ -388,11 +503,22 @@ def send_bot_blocked_alert(username_attempted: str, ip: str, user_agent: str,
     """
     html = _wrap("🤖 Bot Login Blocked", "#4a148c", table)
     _send_async(to, subject, html)
+    _log_alert(
+        alert_type="invalid_credentials",
+        ip=ip,
+        user_agent=user_agent,
+        endpoint="/login",
+        method="POST",
+        threat_score=60,
+        threat_reason="Bot/automated login attempt blocked by reCAPTCHA",
+        notes=f"Username attempted: {username_attempted or '(none)'}",
+        username_attempted=username_attempted,
+    )
 
 
 def send_honeypot_alert(username_attempted: str, ip: str, user_agent: str,
                          timestamp: str) -> None:
-    to = _alert_email()
+    to = _alert_emails()
     if not to:
         return
     subject = "SHEcure 🍯 HONEYPOT TRIGGERED — Possible credential-stuffing attack"
@@ -408,6 +534,8 @@ def send_honeypot_alert(username_attempted: str, ip: str, user_agent: str,
     """
     html = _wrap("🍯 Honeypot Triggered", "#b71c1c", table)
     _send_async(to, subject, html)
+    # Note: honeypot.py already writes its own UnauthorizedAlert row with full
+    # detail; we skip a duplicate here to avoid double entries.
 
 
 def send_2fa_reset_email(user, admin_username: str, timestamp: str,
@@ -442,13 +570,16 @@ def send_2fa_reset_email(user, admin_username: str, timestamp: str,
 
 def send_ip_blocked_alert(ip: str, user_agent: str, timestamp: str,
                           username_attempted: str = "", block_duration_minutes: int = 30) -> None:
-    """Email the admin when an IP is automatically blocked after repeated failed logins."""
-    to = _alert_email()
+    """Email all admins when an IP is automatically blocked after repeated failed logins."""
+    to = _alert_emails()
     if not to:
         return
     subject = f"SHEcure — IP Blocked: {ip}"
     duration_str = f"{block_duration_minutes} minutes"
-    device_str = f"{parse_device(user_agent)}<br><span style='font-size:11px;color:#999'>UA: {user_agent[:120]}</span>" if user_agent else "Unknown"
+    device_str = (
+        f"{parse_device(user_agent)}<br><span style='font-size:11px;color:#999'>UA: {user_agent[:120]}</span>"
+        if user_agent else "Unknown"
+    )
     user_str = username_attempted if username_attempted else "Unknown"
     table = f"""
     <table style='{_TABLE_STYLE}'>
@@ -463,11 +594,22 @@ def send_ip_blocked_alert(ip: str, user_agent: str, timestamp: str,
     """
     html = _wrap("⚠️ IP Address Blocked", "#b71c1c", table)
     _send_async(to, subject, html)
+    _log_alert(
+        alert_type="invalid_credentials",
+        ip=ip,
+        user_agent=user_agent,
+        endpoint="/login",
+        method="POST",
+        threat_score=80,
+        threat_reason=f"IP auto-blocked after repeated failed logins (duration: {duration_str})",
+        notes=f"Username attempted: {user_str}",
+        username_attempted=username_attempted,
+    )
 
 
 def send_unapproved_login_attempt(username_attempted: str, ip: str, user_agent: str,
                                    timestamp: str) -> None:
-    to = _alert_email()
+    to = _alert_emails()
     if not to:
         return
     subject = "SHEcure — Unapproved account login attempt"
@@ -483,3 +625,86 @@ def send_unapproved_login_attempt(username_attempted: str, ip: str, user_agent: 
     """
     html = _wrap("👤 Unapproved Account Login Attempt", "#e65100", table)
     _send_async(to, subject, html)
+    _log_alert(
+        alert_type="invalid_credentials",
+        ip=ip,
+        user_agent=user_agent,
+        endpoint="/login",
+        method="POST",
+        threat_score=30,
+        threat_reason="Login attempted on an account pending admin approval",
+        notes=f"Username: {username_attempted}",
+        username_attempted=username_attempted,
+    )
+
+
+def send_suspicious_push_alert(ip: str, user_agent: str, timestamp: str,
+                                reason: str = "", frame_size_kb: float = 0) -> None:
+    """Email all admins when a suspicious frame push is detected on the camera ingest."""
+    to = _alert_emails()
+    if not to:
+        return
+    subject = "SHEcure 📷 SUSPICIOUS FRAME PUSH — Camera ingest anomaly detected"
+    size_str = f"{frame_size_kb:.1f} KB" if frame_size_kb else "Unknown"
+    table = f"""
+    <table style='{_TABLE_STYLE}'>
+      {_row("Source IP", f"<strong style='color:#b71c1c'>{ip}</strong>")}
+      {_row("Device / UA", f"{parse_device(user_agent)}<br><span style='font-size:11px;color:#999'>UA: {user_agent[:120]}</span>")}
+      {_row("Time (PST)", timestamp)}
+      {_row("Frame size", size_str)}
+      {_row("Reason", reason or "Anomalous frame ingest detected")}
+    </table>
+    <p><strong>An unusual frame was pushed to the camera feed.</strong><br>
+       This may indicate a replay attack, an unauthorised broadcaster, or a
+       payload injection attempt. Review the ingest logs immediately.</p>
+    """
+    html = _wrap("📷 Suspicious Frame Push", "#b71c1c", table)
+    _send_async(to, subject, html)
+    _log_alert(
+        alert_type="suspicious_push",
+        ip=ip,
+        user_agent=user_agent,
+        endpoint="/camera/ingest",
+        method="POST",
+        threat_score=85,
+        threat_reason=reason or "Anomalous frame ingest detected",
+        notes=f"Frame size: {size_str}",
+    )
+
+
+def send_suspicious_movement_alert(camera_label: str, timestamp: str,
+                                    snapshot_b64: str = "",
+                                    confidence: float = 0.0) -> None:
+    """Email all admins when suspicious movement is detected by the camera."""
+    to = _alert_emails()
+    if not to:
+        return
+    subject = "SHEcure 🚨 SUSPICIOUS MOVEMENT DETECTED"
+    confidence_str = f"{confidence:.0%}" if confidence else "N/A"
+    snapshot_html = (
+        f"<br><img src='data:image/jpeg;base64,{snapshot_b64}' "
+        f"style='max-width:480px;border:2px solid #b71c1c;border-radius:4px;margin-top:8px' "
+        f"alt='Motion snapshot'>"
+        if snapshot_b64 else ""
+    )
+    table = f"""
+    <table style='{_TABLE_STYLE}'>
+      {_row("Camera", f"<strong>{camera_label}</strong>")}
+      {_row("Time (PST)", timestamp)}
+      {_row("Confidence", confidence_str)}
+    </table>
+    <p><strong>Unusual movement was detected on the camera feed.</strong><br>
+       Please review the live stream or recent recordings immediately.{snapshot_html}</p>
+    """
+    html = _wrap("🚨 Suspicious Movement Detected", "#b71c1c", table)
+    _send_async(to, subject, html)
+    _log_alert(
+        alert_type="suspicious_movement",
+        ip="camera-agent",
+        user_agent="",
+        endpoint="/camera/motion-alert",
+        method="POST",
+        threat_score=75,
+        threat_reason=f"Suspicious movement on {camera_label} (confidence: {confidence_str})",
+        notes=f"Camera: {camera_label} | Confidence: {confidence_str}",
+    )
