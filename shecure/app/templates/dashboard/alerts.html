@@ -1,3 +1,4 @@
+
 {% extends "base.html" %}
 {% block title %}Security Alerts{% endblock %}
 {% block page_title %}⟡ Security Alerts{% endblock %}
@@ -5,42 +6,124 @@
 {% block content %}
 <div class="pink-line"></div>
 
-<div class="card">
-  <div class="card-header">
-    <h2 class="card-title">Unauthorized Access Alerts</h2>
-    {% set unresolved = alerts|selectattr('resolved','equalto',false)|list %}
-    <span class="badge {% if unresolved %}badge-danger{% else %}badge-success{% endif %}">
-      {{ unresolved|length }} unresolved
+{# ── Type badge colour map ────────────────────────────────────────────── #}
+{% set type_colors = {
+  "honeypot":            "#b71c1c",
+  "suspicious_push":     "#b71c1c",
+  "suspicious_movement": "#e65100",
+  "invalid_credentials": "#4a148c",
+  "unauthorized_access": "#1565c0"
+} %}
+{% set type_icons = {
+  "honeypot":            "🍯",
+  "suspicious_push":     "📷",
+  "suspicious_movement": "🚨",
+  "invalid_credentials": "🔑",
+  "unauthorized_access": "⛔"
+} %}
+
+{# ── Filter bar ───────────────────────────────────────────────────────── #}
+<div class="card" style="margin-bottom:1rem">
+  <div class="card-body" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
+    <span style="font-size:.85rem;color:var(--text-muted);margin-right:.25rem">Filter:</span>
+    <button class="btn btn-ghost btn-sm filter-btn active" data-filter="all">All</button>
+    <button class="btn btn-ghost btn-sm filter-btn" data-filter="honeypot">Honeypot</button>
+    <button class="btn btn-ghost btn-sm filter-btn" data-filter="suspicious_push">Frame Push</button>
+    <button class="btn btn-ghost btn-sm filter-btn" data-filter="suspicious_movement">Movement</button>
+    <button class="btn btn-ghost btn-sm filter-btn" data-filter="invalid_credentials">Credentials</button>
+    <button class="btn btn-ghost btn-sm filter-btn" data-filter="unauthorized_access">Unauthorized</button>
+    <span style="margin-left:auto;font-size:.8rem;color:var(--text-muted)">
+      {% set unresolved = alerts|selectattr('resolved','equalto',false)|list %}
+      <span class="badge {% if unresolved %}badge-danger{% else %}badge-success{% endif %}">
+        {{ unresolved|length }} unresolved
+      </span>
+      of {{ alerts|length }} total
     </span>
   </div>
-  <div class="card-body">
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h2 class="card-title">Security Alerts</h2>
+  </div>
+  <div class="card-body" id="alerts-list">
     {% if not alerts %}
       <p style="text-align:center;color:var(--success);padding:2rem">
-         No unauthorized access detected. All clear!
+         No security alerts on record. All clear!
       </p>
     {% else %}
       {% for alert in alerts %}
-      <div class="alert-item {% if alert.resolved %}resolved{% endif %}" 
+      {% set atype = alert.alert_type or "unauthorized_access" %}
+      {% set acolor = type_colors.get(atype, "#1565c0") %}
+      {% set aicon  = type_icons.get(atype,  "⛔") %}
+      <div class="alert-item {% if alert.resolved %}resolved{% endif %}"
            id="alert-row-{{ alert.id }}"
+           data-type="{{ atype }}"
            role="article"
-           aria-label="Alert from {{ alert.ip_address }}">
-        <div class="alert-item-icon" aria-hidden="true"></div>
-        <div class="alert-item-body" style="flex:1">
-          <div class="alert-item-ip">{{ alert.ip_address }}</div>
+           aria-label="Alert {{ atype }} from {{ alert.ip_address }}">
+
+        {# ── Left colour stripe + icon ──────────────────────────────── #}
+        <div class="alert-item-icon" aria-hidden="true"
+             style="background:{{ acolor }};color:#fff;border-radius:6px;
+                    width:2.2rem;min-width:2.2rem;display:flex;align-items:center;
+                    justify-content:center;font-size:1.1rem">
+          {{ aicon }}
+        </div>
+
+        {# ── Body ───────────────────────────────────────────────────── #}
+        <div class="alert-item-body" style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.2rem">
+            <span class="badge" style="background:{{ acolor }};color:#fff;font-size:.72rem">
+              {{ alert.alert_type_label if alert.alert_type_label is defined
+                 else atype|replace('_',' ')|title }}
+            </span>
+            <span class="alert-item-ip">{{ alert.ip_address }}</span>
+            {% if alert.username_attempted %}
+              <span style="font-size:.8rem;color:var(--text-muted)">
+                · user: <strong>{{ alert.username_attempted }}</strong>
+              </span>
+            {% endif %}
+          </div>
+
           <div class="alert-item-meta">
-            <strong>{{ alert.method }}</strong> {{ alert.endpoint }}
-            &nbsp;·&nbsp;
+            {% if alert.method and alert.endpoint %}
+              <strong>{{ alert.method }}</strong> {{ alert.endpoint }}
+              &nbsp;·&nbsp;
+            {% endif %}
             <time datetime="{{ alert.timestamp.isoformat() }}">
-              {{ alert.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+              {{ alert.timestamp.strftime('%Y-%m-%d %H:%M:%S') }} PST
             </time>
           </div>
-          {% if alert.user_agent %}
-          <div class="alert-item-meta" style="margin-top:.2rem;font-size:.75rem">
-            UA: {{ alert.user_agent[:80] }}{% if alert.user_agent|length > 80 %}…{% endif %}
+
+          {% if alert.threat_reason %}
+          <div class="alert-item-meta" style="margin-top:.25rem;font-size:.8rem;color:var(--text-muted)">
+            ⚡ {{ alert.threat_reason }}
           </div>
           {% endif %}
+
+          {% if alert.notes %}
+          <div class="alert-item-meta" style="margin-top:.15rem;font-size:.75rem;color:var(--text-muted)">
+            📝 {{ alert.notes }}
+          </div>
+          {% endif %}
+
+          {% if alert.user_agent %}
+          <div class="alert-item-meta" style="margin-top:.15rem;font-size:.72rem;color:var(--text-muted)">
+            UA: {{ alert.user_agent[:100] }}{% if alert.user_agent|length > 100 %}…{% endif %}
+          </div>
+          {% endif %}
+
+          <div style="margin-top:.3rem">
+            <span class="badge" style="
+              background:{% if alert.threat_score >= 80 %}#b71c1c{% elif alert.threat_score >= 50 %}#e65100{% else %}#555{% endif %};
+              color:#fff;font-size:.7rem">
+              Threat {{ alert.threat_score }}/100
+            </span>
+          </div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.5rem">
+
+        {# ── Right actions ───────────────────────────────────────────── #}
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.5rem;min-width:90px">
           {% if alert.resolved %}
             <span class="badge badge-success">Resolved</span>
           {% else %}
@@ -55,9 +138,24 @@
             {% endif %}
           {% endif %}
         </div>
+
       </div>
       {% endfor %}
     {% endif %}
   </div>
 </div>
+
+<script>
+// ── Client-side type filter ──────────────────────────────────────────────────
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', function () {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    const filter = this.dataset.filter;
+    document.querySelectorAll('#alerts-list .alert-item').forEach(row => {
+      row.style.display = (filter === 'all' || row.dataset.type === filter) ? '' : 'none';
+    });
+  });
+});
+</script>
 {% endblock %}
