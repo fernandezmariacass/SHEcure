@@ -5,6 +5,7 @@ import threading
 from flask import Blueprint, render_template, Response, request, jsonify, abort
 from flask_login import login_required, current_user
 from app.utils.security import approved_required
+from app.utils.email_utils import send_suspicious_push_alert, send_suspicious_movement_alert
 from app import csrf
 
 camera_bp = Blueprint("camera", __name__)
@@ -19,6 +20,14 @@ BROADCASTER_USERNAME = os.environ.get("BROADCASTER_USERNAME", "admin")
 MAX_FRAME_BYTES = 500 * 1024   # 500 KB per frame
 MIN_FRAME_INTERVAL = 0.05      # max ~20 fps from broadcaster
 
+# ── Suspicious push detection ─────────────────────────────────────────────────
+# Track rapid unauthorised or oversized ingest attempts per IP.
+_push_violations: dict = {}       # ip -> {"count": int, "first_ts": float}
+_push_lock = threading.Lock()
+PUSH_VIOLATION_WINDOW   = 60     # seconds
+PUSH_VIOLATION_THRESHOLD = 3     # violations before alert email fires
+_alerted_ips: set = set()        # avoid duplicate alerts per IP in this process lifetime
+
 
 def _set_frame(jpeg_bytes):
     global _latest_frame, _frame_time
@@ -32,6 +41,41 @@ def _clear_frame():
     with _frame_lock:
         _latest_frame = None
         _frame_time = 0
+
+
+def _record_push_violation(ip: str, reason: str, frame_size_bytes: int = 0) -> None:
+    """Increment the violation counter for *ip*.
+
+    When the threshold is crossed within the sliding window, a single alert
+    email is sent and an UnauthorizedAlert DB row is written (via
+    send_suspicious_push_alert → _log_alert).  Subsequent violations from the
+    same IP within this process lifetime are silently counted but not re-alerted.
+    """
+    now = time.time()
+    with _push_lock:
+        rec = _push_violations.get(ip)
+        if rec is None or (now - rec["first_ts"]) > PUSH_VIOLATION_WINDOW:
+            _push_violations[ip] = {"count": 1, "first_ts": now}
+            return  # first offence in this window — no alert yet
+        rec["count"] += 1
+        count = rec["count"]
+
+    if count >= PUSH_VIOLATION_THRESHOLD and ip not in _alerted_ips:
+        _alerted_ips.add(ip)
+        try:
+            from app.models.logs import now_pst
+        except Exception:
+            now_pst = lambda: __import__("datetime").datetime.utcnow()  # noqa: E731
+        ua = request.headers.get("User-Agent", "") if request else ""
+        ts = now_pst().strftime("%Y-%m-%d %H:%M:%S PST")
+        size_kb = frame_size_bytes / 1024 if frame_size_bytes else 0
+        send_suspicious_push_alert(
+            ip=ip,
+            user_agent=ua,
+            timestamp=ts,
+            reason=reason,
+            frame_size_kb=size_kb,
+        )
 
 
 def _get_frame():
@@ -156,10 +200,22 @@ def broadcast_proxy():
     is added server-side and never exposed to the client.
     """
     if not _check_broadcaster_session():
+        from app.utils.security import _get_real_ip
+        ip = _get_real_ip() or "unknown"
+        _record_push_violation(ip, "Unauthorised session on /camera/broadcast — not a whitelisted broadcaster")
         abort(403)
     if not _BROADCASTER_SECRET:
         abort(500)
     data = request.get_data()
+    if len(data) > MAX_FRAME_BYTES:
+        from app.utils.security import _get_real_ip
+        ip = _get_real_ip() or "unknown"
+        _record_push_violation(
+            ip,
+            f"Oversized frame ({len(data) // 1024} KB) rejected on /camera/broadcast",
+            frame_size_bytes=len(data),
+        )
+        abort(413)
     _ingest_frame(data)
     return jsonify({"ok": True})
 
@@ -195,8 +251,18 @@ def clear_feed():
 def ingest():
     secret = request.headers.get("X-Broadcaster-Secret", "")
     if not _BROADCASTER_SECRET or not hmac.compare_digest(secret, _BROADCASTER_SECRET):
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+        _record_push_violation(ip, "Invalid or missing BROADCASTER_SECRET on /camera/ingest")
         abort(403)
     data = request.get_data()
+    if len(data) > MAX_FRAME_BYTES:
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+        _record_push_violation(
+            ip,
+            f"Oversized frame ({len(data) // 1024} KB) rejected on /camera/ingest",
+            frame_size_bytes=len(data),
+        )
+        abort(413)
     _ingest_frame(data)
     return jsonify({"ok": True})
 
@@ -219,6 +285,43 @@ def broadcaster_status():
     """
     authorized = _check_broadcaster_session()
     return jsonify({"authorized": authorized})
+
+
+# ── Motion-detection alert (called by the local agent) ────────────────────────
+
+@camera_bp.route("/motion-alert", methods=["POST"])
+@csrf.exempt
+def motion_alert():
+    """
+    POST endpoint for the local agent (agent-1.py or similar) to report a
+    motion-detection event.  Authenticated with X-Ingest-Key = BROADCASTER_SECRET.
+
+    Expected JSON body (all fields optional except camera_label):
+      {
+        "camera_label": "Front Door",
+        "timestamp":    "2025-06-01 14:32:10 PST",   // optional, defaults to now
+        "confidence":   0.87,                          // 0.0–1.0, optional
+        "snapshot_b64": "<base64-encoded JPEG>"        // optional, embedded in email
+      }
+
+    On success the event is emailed to all admins AND written to the
+    unauthorized_alerts table (alert_type = 'suspicious_movement').
+    """
+    key = request.headers.get("X-Ingest-Key", "")
+    if not _BROADCASTER_SECRET or not hmac.compare_digest(key, _BROADCASTER_SECRET):
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr or "unknown").split(",")[0].strip()
+        _record_push_violation(ip, "Invalid X-Ingest-Key on /camera/motion-alert")
+        abort(403)
+
+    payload = request.get_json(silent=True) or {}
+    from app.models.logs import now_pst
+    send_suspicious_movement_alert(
+        camera_label=payload.get("camera_label", "Camera"),
+        timestamp=payload.get("timestamp", now_pst().strftime("%Y-%m-%d %H:%M:%S PST")),
+        snapshot_b64=payload.get("snapshot_b64", ""),
+        confidence=float(payload.get("confidence", 0)),
+    )
+    return jsonify({"ok": True})
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
