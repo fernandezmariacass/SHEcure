@@ -97,7 +97,16 @@ class ActivityLog(db.Model):
 
 
 class UnauthorizedAlert(db.Model):
-    """Stores alerts for unauthorized access attempts."""
+    """Stores alerts for unauthorized access attempts.
+
+    ``alert_type`` classifies the source of the alert so the UI can group and
+    label entries clearly.  Supported values:
+        unauthorized_access   – generic 403 / route probe (original behaviour)
+        honeypot              – honeypot credentials or honeypot-route hit
+        invalid_credentials   – repeated invalid username / password
+        suspicious_push       – anomalous camera frame ingest
+        suspicious_movement   – motion-detection trigger from the camera agent
+    """
     __tablename__ = "unauthorized_alerts"
 
     id = db.Column(db.Integer, primary_key=True)
@@ -110,6 +119,19 @@ class UnauthorizedAlert(db.Model):
     notes = db.Column(db.Text)
     threat_score = db.Column(db.Integer, default=0)
     threat_reason = db.Column(db.String(300))
+    # New columns — added via ALTER TABLE migration in __init__.py on first run
+    alert_type = db.Column(db.String(40), default="unauthorized_access", nullable=False,
+                           server_default="unauthorized_access")
+    username_attempted = db.Column(db.String(80), nullable=True)
+
+    # Human-readable label map used by templates and to_dict()
+    _TYPE_LABELS = {
+        "unauthorized_access": "Unauthorized Access",
+        "honeypot":            "Honeypot Triggered",
+        "invalid_credentials": "Invalid Credentials",
+        "suspicious_push":     "Suspicious Frame Push",
+        "suspicious_movement": "Suspicious Movement",
+    }
 
     def to_dict(self):
         return {
@@ -121,6 +143,12 @@ class UnauthorizedAlert(db.Model):
             "resolved": self.resolved,
             "threat_score": self.threat_score,
             "threat_reason": self.threat_reason,
+            "alert_type": self.alert_type or "unauthorized_access",
+            "alert_type_label": self._TYPE_LABELS.get(
+                self.alert_type or "unauthorized_access", "Alert"
+            ),
+            "username_attempted": self.username_attempted or "",
+            "notes": self.notes or "",
         }
 
 
