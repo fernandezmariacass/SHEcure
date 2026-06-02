@@ -46,7 +46,7 @@ def create_app():
     if is_production:
         app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
             "connect_args": {
-                "sslmode": "require"
+                "sslmode": "prefer"
             },
             "pool_pre_ping": True,
             "pool_recycle": 1800,
