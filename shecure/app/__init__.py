@@ -198,6 +198,16 @@ def _auto_migrate():
             "lookup_key VARCHAR(80) UNIQUE NOT NULL, "
             "used_at TIMESTAMP NOT NULL DEFAULT NOW())"
         ),
+        # ── unauthorized_alerts: alert classification columns ─────────────────
+        db.text(
+            "ALTER TABLE unauthorized_alerts "
+            "ADD COLUMN IF NOT EXISTS alert_type VARCHAR(40) "
+            "NOT NULL DEFAULT 'unauthorized_access'"
+        ),
+        db.text(
+            "ALTER TABLE unauthorized_alerts "
+            "ADD COLUMN IF NOT EXISTS username_attempted VARCHAR(80)"
+        ),
         # ── Admin limit DB trigger ────────────────────────────────────────────
         # This enforces the 5-admin cap at the PostgreSQL level, so it fires
         # even when the database is edited directly (e.g. via the Railway
