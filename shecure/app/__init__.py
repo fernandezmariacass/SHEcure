@@ -159,7 +159,7 @@ def create_app():
         nonce = g.get("csp_nonce", "")
         # Remove any CSP header already added by Railway or other middleware
         # to prevent the browser ignoring a duplicate directive.
-        response.headers.discard("Content-Security-Policy")
+        response.headers.remove("Content-Security-Policy")
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             f"script-src 'self' 'nonce-{nonce}' "
