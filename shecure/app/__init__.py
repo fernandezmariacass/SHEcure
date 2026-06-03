@@ -157,12 +157,20 @@ def create_app():
 
         from flask import g
         nonce = g.get("csp_nonce", "")
+        # Remove any CSP header already added by Railway or other middleware
+        # to prevent the browser ignoring a duplicate directive.
+        response.headers.discard("Content-Security-Policy")
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
+            f"script-src 'self' 'nonce-{nonce}' "
+            "https://www.google.com https://www.gstatic.com; "
+            # Keep 'unsafe-inline' for style-src WITHOUT a nonce.
+            # Browsers intentionally ignore 'unsafe-inline' in a directive that
+            # also contains a nonce, so mixing them blocks all element-level
+            # style="" attributes (which cannot carry nonces).  The nonce is
+            # only useful on <style> blocks and <script> tags, so we apply it
+            # only to script-src below.
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
-            # FIX: removed 'unsafe-inline' — use the per-request nonce for any
-            # inline styles that are truly needed, or move them to .css files.
-            f"style-src 'self' 'unsafe-inline' 'nonce-{nonce}' https://fonts.googleapis.com https://fonts.gstatic.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: blob:; "
             "frame-src https://www.google.com; "
