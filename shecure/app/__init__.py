@@ -159,8 +159,7 @@ def create_app():
         nonce = g.get("csp_nonce", "")
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            f"script-src 'self' 'nonce-{nonce}' "
-            "https://www.google.com https://www.gstatic.com; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
             # FIX: removed 'unsafe-inline' — use the per-request nonce for any
             # inline styles that are truly needed, or move them to .css files.
             f"style-src 'self' 'unsafe-inline' 'nonce-{nonce}' https://fonts.googleapis.com https://fonts.gstatic.com; "
