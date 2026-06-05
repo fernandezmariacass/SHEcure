@@ -194,25 +194,10 @@ def log_access(username_attempted, status, reason=None, user_id=None):
     except Exception:
         pass
 
-    # FIX: Check whether the location column actually exists in the DB before
-    # attempting to write it. The column is added by _auto_migrate(), but if
-    # the app restarts between db.create_all() and the ALTER TABLE, or if the
-    # migration was silently skipped, writing location= raises a
-    # ProgrammingError that crashes the login route with a 500.
-    _location_col_exists = False
-    try:
-        result = db.session.execute(
-            db.text(
-                "SELECT 1 FROM information_schema.columns "
-                "WHERE table_name='access_logs' AND column_name='location' LIMIT 1"
-            )
-        )
-        _location_col_exists = result.fetchone() is not None
-    except Exception:
-        pass
-
-    # Build kwargs conditionally so we never pass a column that doesn't exist
-    _entry_kwargs = dict(
+    # Write the log entry. The location column is guaranteed to exist because
+    # railway.toml runs migrate_add_location.py before gunicorn starts.
+    # The outer try/except means any unexpected DB error still never crashes login.
+    entry = AccessLog(
         user_id=user_id,
         username_attempted=hashed_username,
         ip_address=ip,
@@ -220,11 +205,8 @@ def log_access(username_attempted, status, reason=None, user_id=None):
         status=status,
         reason=reason,
         is_unauthorized=(status == "blocked"),
+        location=location,
     )
-    if _location_col_exists:
-        _entry_kwargs["location"] = location
-
-    entry = AccessLog(**_entry_kwargs)
     db.session.add(entry)
     db.session.commit()
 
