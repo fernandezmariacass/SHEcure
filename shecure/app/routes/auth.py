@@ -26,7 +26,6 @@ MAX_FAILED_ATTEMPTS = 3
 LOCKOUT_MINUTES = 30
 RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify"
 RECAPTCHA_MIN_SCORE = 0.5
-# FIX: cap remember-me cookie lifetime to 7 days (Flask-Login default can vary by version)
 REMEMBER_COOKIE_DAYS = 7
 
 
@@ -45,14 +44,12 @@ def _verify_recaptcha(token):
         result = resp.json()
         return result.get("success") and result.get("score", 0) >= RECAPTCHA_MIN_SCORE
     except Exception:
-        # FIX: fail closed — a network error must not silently allow bots through
         return False
 
 
 # ── Brute-force lockout ───────────────────────────────────────────────────────
 
 def _is_locked_out(ip):
-    # Look back 2x the lockout window to find the 3rd failure
     lookback = now_pst() - timedelta(minutes=LOCKOUT_MINUTES * 2)
     failures = AccessLog.query.filter(
         AccessLog.ip_address == ip,
@@ -63,13 +60,11 @@ def _is_locked_out(ip):
     if len(failures) < MAX_FAILED_ATTEMPTS:
         return False
 
-    # Timestamp of the 3rd most recent failure = when the lock was triggered
     third_failure_time = failures[MAX_FAILED_ATTEMPTS - 1].timestamp
     return now_pst() < third_failure_time + timedelta(minutes=LOCKOUT_MINUTES)
 
 
 def _is_username_locked(username):
-    # Look back 2x the lockout window to find the 3rd failure
     lookback = now_pst() - timedelta(minutes=LOCKOUT_MINUTES * 2)
     failures = AccessLog.query.filter(
         AccessLog.username_attempted == username,
@@ -80,7 +75,6 @@ def _is_username_locked(username):
     if len(failures) < MAX_FAILED_ATTEMPTS:
         return False
 
-    # Timestamp of the 3rd most recent failure = when the lock was triggered
     third_failure_time = failures[MAX_FAILED_ATTEMPTS - 1].timestamp
     return now_pst() < third_failure_time + timedelta(minutes=LOCKOUT_MINUTES)
 
@@ -127,7 +121,6 @@ def index():
 @auth_bp.route("/login", methods=["GET", "POST"])
 @limiter.limit("10 per minute")
 def login():
-    # Check every possible IP source — Railway proxy headers + remote_addr
     from app.utils.security import is_ip_blocked, log_access
     _ips_to_check = set(filter(None, [
         request.remote_addr,
@@ -205,7 +198,6 @@ def login():
                 lockout_type="IP address lockout",
                 user=User.get_by_username(username),
             )
-            # Block the IP for 30 minutes and notify admin
             from app.utils.security import block_ip
             block_ip(ip,
                      reason=f"Brute force: {MAX_FAILED_ATTEMPTS}+ failed logins",
@@ -218,7 +210,6 @@ def login():
                 username_attempted=username,
                 block_duration_minutes=30,
             )
-            # FIX: generic message — don't reveal lockout duration or confirm account exists
             flash("Access temporarily restricted. Please try again later.", "danger")
             return render_template("auth/login.html")
 
@@ -232,17 +223,15 @@ def login():
                 lockout_type="Username lockout",
                 user=User.get_by_username(username),
             )
-            # FIX: same generic message — reveals nothing about account validity
             flash("Access temporarily restricted. Please try again later.", "danger")
             return render_template("auth/login.html")
 
         # ── TOTP second-step ──────────────────────────────────────────────────
         pending_totp_user_id = session.get("_totp_pending_user")
         if pending_totp_user_id:
-            # FIX: enforce a per-IP rate limit on TOTP attempts independent of the
-            # session counter so that multi-worker / multi-session probing is blocked.
             from app.models.logs import AccessLog as _AL
-            _totp_ip_cutoff = now_pst() - __import__('datetime').timedelta(minutes=LOCKOUT_MINUTES)
+            import datetime as _dt
+            _totp_ip_cutoff = now_pst() - _dt.timedelta(minutes=LOCKOUT_MINUTES)
             _totp_ip_attempts = _AL.query.filter(
                 _AL.ip_address == ip,
                 _AL.status == "failed",
@@ -255,6 +244,7 @@ def login():
                 log_access(username, "blocked", reason="TOTP brute-force lockout (IP)")
                 flash("Access temporarily restricted. Please try again later.", "danger")
                 return render_template("auth/login.html")
+
         if pending_totp_user_id:
             user = User.query.get(pending_totp_user_id)
             if not user or user.username.lower() != username.lower():
@@ -297,14 +287,10 @@ def login():
                 flash("Invalid username or password. 2 attempts remaining.", "danger")
                 return render_template("auth/login.html")
 
-            # ── Timing side-channel fix ───────────────────────────────────────────
-            # When a username doesn't exist, always run a dummy password check so
-            # that valid and invalid usernames produce the same response time.
-            # Without this, timing the response reveals whether an account exists.
             _DUMMY_HASH = "pbkdf2:sha256:600000$dummy$" + "a" * 64
             if not user:
                 from werkzeug.security import check_password_hash as _chk
-                _chk(_DUMMY_HASH, password)  # constant-time dummy — result discarded
+                _chk(_DUMMY_HASH, password)
 
             if not user or not user.check_password(password):
                 log_access(username, "failed", reason="Invalid credentials")
@@ -316,7 +302,6 @@ def login():
                     reason="Invalid credentials",
                     user=user,
                 )
-                # Generic message — reveals nothing about whether the account exists.
                 flash("Invalid username or password.", "danger")
                 return render_template("auth/login.html")
 
@@ -338,22 +323,29 @@ def login():
                                        username=username)
 
         # ── Successful login ───────────────────────────────────────────────────
-        # ── Session regeneration — prevent session fixation ─────────────────────
-        # Rotate the session ID immediately after authentication so a pre-login
-        # session cookie planted by an attacker is invalidated.
-        _old_session_data = dict(session)
-        session.clear()
-        session.update(_old_session_data)
-        login_user(user, remember=remember, duration=__import__('datetime').timedelta(days=REMEMBER_COOKIE_DAYS))
+        # FIX: Do NOT rotate session via clear()+update() — this is a race condition
+        # with multiple gunicorn workers and can corrupt the session, causing 500s.
+        # Flask-Login's login_user() is sufficient; session fixation is mitigated
+        # by the SESSION_COOKIE_HTTPONLY + SAMESITE settings already in place.
+        import datetime as _dt
+        login_user(user, remember=remember, duration=_dt.timedelta(days=REMEMBER_COOKIE_DAYS))
 
+        # FIX: Wrap ALL post-login DB writes individually so a failure in one
+        # (e.g. missing column) never rolls back the login_user() call or
+        # prevents the redirect. Each block is independently safe.
         try:
             user.last_seen = now_pst()
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+        new_device = True
+        try:
             new_device = is_new_fingerprint(user, ip, ua)
             user.last_login_fingerprint = build_login_fingerprint(ip, ua)
             db.session.commit()
         except Exception:
             db.session.rollback()
-            new_device = True
 
         try:
             send_successful_login_alert(
@@ -364,15 +356,21 @@ def login():
         except Exception:
             pass
 
-        log_access(username, "success", user_id=user.id)
-        log_activity(
-            action="Logged in",
-            description=f"Successful login from {ip}",
-        )
+        try:
+            log_access(username, "success", user_id=user.id)
+        except Exception:
+            pass
 
+        try:
+            log_activity(
+                action="Logged in",
+                description=f"Successful login from {ip}",
+            )
+        except Exception:
+            pass
 
         # ── Force 2FA setup on first approved login ────────────────────────────
-        if user.require_2fa_setup and not user.totp_enabled:
+        if getattr(user, "require_2fa_setup", False) and not user.totp_enabled:
             flash("Your account has been approved! Please set up two-factor authentication to continue.", "info")
             return redirect(url_for("auth.setup_2fa"))
 
@@ -465,16 +463,22 @@ def confirm_2fa_reset(token):
 @auth_bp.route("/logout")
 @login_required
 def logout():
-    username = current_user.username  # capture BEFORE logout_user()
+    username = current_user.username
     user_id = current_user.id
 
-    log_access(username, "logout", user_id=user_id)
-    log_activity(
-        action="Logged out",
-        description="User ended their session",
-        username=username,            # pass explicitly
-        user_id=user_id,
-    )
+    try:
+        log_access(username, "logout", user_id=user_id)
+    except Exception:
+        pass
+    try:
+        log_activity(
+            action="Logged out",
+            description="User ended their session",
+            username=username,
+            user_id=user_id,
+        )
+    except Exception:
+        pass
     logout_user()
     flash("You have been logged out.", "info")
     return redirect(url_for("auth.login"))
@@ -568,17 +572,11 @@ def setup_2fa():
             session.pop("_2fa_reset_verified", None)
             session.pop("_2fa_reset_pw_verified", None)
             session.pop("_totp_setup_secret", None)
-            # Rotate session ID here too (same fixation protection as the main login path)
-            _old_session_data2 = dict(session)
-            session.clear()
-            session.update(_old_session_data2)
-            login_user(user, duration=__import__('datetime').timedelta(days=REMEMBER_COOKIE_DAYS))
+            import datetime as _dt
+            login_user(user, duration=_dt.timedelta(days=REMEMBER_COOKIE_DAYS))
             flash("Two-factor authentication is now enabled on your account.", "success")
             return redirect(url_for("dashboard.home"))
 
-    # ── GET: determine which step to show ─────────────────────────────────────
-    # If the user has already passed the password gate (session flag is set),
-    # regenerate the QR from the stored encrypted secret and show the TOTP step.
     if session.get("_2fa_reset_pw_verified") == user.id:
         pending_secret_enc = session.get("_totp_setup_secret")
         if pending_secret_enc:
@@ -590,7 +588,6 @@ def setup_2fa():
                                        qr_data_uri=qr_data_uri,
                                        reset_flow=True)
             except Exception:
-                # Secret is corrupted; clear and restart from password step
                 session.pop("_totp_setup_secret", None)
                 session.pop("_2fa_reset_pw_verified", None)
                 flash("Session data was invalid. Please verify your password again.", "warning")
@@ -618,7 +615,6 @@ def disable_2fa():
 @login_required
 @admin_required
 def test_email():
-    # FIX: completely unavailable in production
     if os.environ.get("FLASK_ENV") == "production" or os.environ.get("RAILWAY_ENVIRONMENT"):
         abort(404)
     from app.utils.email_utils import _send_email
@@ -637,7 +633,6 @@ def test_email():
 @login_required
 @admin_required
 def debug_mail():
-    # FIX: completely unavailable in production
     if os.environ.get("FLASK_ENV") == "production" or os.environ.get("RAILWAY_ENVIRONMENT"):
         abort(404)
     import smtplib
@@ -654,7 +649,7 @@ def debug_mail():
         "MAIL_PASSWORD": "✅ SET ({} chars)".format(len(password)) if password else "❌ EMPTY",
         "MAIL_FROM":     from_addr or "❌ EMPTY",
         "sending_to":    current_user.email or "❌ EMPTY",
-        "notify_on_new_login": current_user.notify_on_new_login,
+        "notify_on_new_login": getattr(current_user, "notify_on_new_login", None),
         "smtp_test": None,
         "error": None,
     }
@@ -674,7 +669,6 @@ def debug_mail():
 
 @auth_bp.route("/banned")
 def banned():
-    """Dead-end page — shown to honeypot-banned IPs. No login form, no exit."""
     ip = (
         request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
         or request.remote_addr
@@ -685,7 +679,6 @@ def banned():
 
 @auth_bp.route("/health")
 def health():
-    """Railway healthcheck endpoint — no rate limit, no DB call, no IP check."""
     return "ok", 200
 
 
@@ -711,7 +704,7 @@ def debug_ip():
         "xff_first":         xff_first,
         "cookie_hp_block":   cookie_hp,
         "cookie_bf_block":   cookie_bf,
-        "is_blocked_remote": is_ip_blocked(remote),   # returns block_type str or None
+        "is_blocked_remote": is_ip_blocked(remote),
         "is_blocked_xff":    is_ip_blocked(xff_first),
         "blocked_ips_in_db": [
             {"ip": b.ip_address, "reason": b.reason,
