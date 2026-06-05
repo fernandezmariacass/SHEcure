@@ -39,6 +39,8 @@ class AccessLog(db.Model):
     reason = db.Column(db.String(200))
     timestamp = db.Column(db.DateTime, default=now_pst, index=True)
     is_unauthorized = db.Column(db.Boolean, default=False)
+    # Human-readable location derived from IP at login time (e.g. "Quezon City, Metro Manila, PH")
+    location = db.Column(db.String(200), nullable=True)
 
     def to_dict(self):
         # Resolve plaintext username from user_id if available,
@@ -56,6 +58,7 @@ class AccessLog(db.Model):
             "id": self.id,
             "username": display_username,
             "ip": self.ip_address,
+            "location": self.location or "—",
             "status": self.status,
             "reason": self.reason,
             "timestamp": self.timestamp.strftime('%Y-%m-%d %H:%M:%S') + ' PST',
