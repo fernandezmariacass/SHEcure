@@ -196,19 +196,22 @@ def log_access(username_attempted, status, reason=None, user_id=None):
 
     # Write the log entry. The location column is guaranteed to exist because
     # railway.toml runs migrate_add_location.py before gunicorn starts.
-    # The outer try/except means any unexpected DB error still never crashes login.
-    entry = AccessLog(
-        user_id=user_id,
-        username_attempted=hashed_username,
-        ip_address=ip,
-        user_agent=request.user_agent.string[:512],
-        status=status,
-        reason=reason,
-        is_unauthorized=(status == "blocked"),
-        location=location,
-    )
-    db.session.add(entry)
-    db.session.commit()
+    # The try/except ensures any unexpected DB error never crashes the login flow.
+    try:
+        entry = AccessLog(
+            user_id=user_id,
+            username_attempted=hashed_username,
+            ip_address=ip,
+            user_agent=request.user_agent.string[:512],
+            status=status,
+            reason=reason,
+            is_unauthorized=(status == "blocked"),
+            location=location,
+        )
+        db.session.add(entry)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 def log_activity(description=None, suspicious=False, action=None, username=None, user_id=None):
