@@ -194,12 +194,28 @@ def _auto_migrate():
         log.error("[auto_migrate] db.create_all() failed: %s", exc)
 
     # ── Step 6: Raw SQL hardening — always use db.text(), never string interpolation ──
+
+    # FIX: Run the location column migration FIRST and in isolation, so that
+    # even if subsequent migrations fail, the column is guaranteed to exist
+    # before any login request is processed.  A missing location column was
+    # the primary cause of the post-deploy 500 crash.
+    with db.engine.connect() as _conn:
+        try:
+            _conn.execute(db.text(
+                "ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS location VARCHAR(200)"
+            ))
+            _conn.commit()
+            log.info("[auto_migrate] OK (priority): location column ensured on access_logs")
+        except Exception as _e:
+            _conn.rollback()
+            log.warning("[auto_migrate] SKIPPED location column (%s) — will retry in main loop", _e)
+
     migrations = [
         db.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS require_2fa_setup BOOLEAN DEFAULT FALSE"),
         db.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_2fa_token VARCHAR(64)"),
         db.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_2fa_token_expiry TIMESTAMP"),
         db.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS username_hash VARCHAR(64)"),
-        # ── Geo-location feature ──────────────────────────────────────────────
+        # ── Geo-location feature (also run above as priority migration) ───────
         db.text("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS location VARCHAR(200)"),
         db.text(
             "CREATE TABLE IF NOT EXISTS used_totp_codes ("
