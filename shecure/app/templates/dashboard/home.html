@@ -197,39 +197,111 @@ pollStatus();
 setInterval(pollStatus, 2000);
 
 {% else %}
-// ── Camera preview for non-members ───────────────────────────────────────────
+// ── Camera preview for non-members (admins / staff) ──────────────────────────
+// FIX: img.onload does NOT reliably fire for MJPEG multipart streams —
+// the browser treats it as an endless response, so onload never triggers
+// and the preview stays black (opacity:0) even when frames are arriving.
+//
+// Solution:
+//   1. Attach the stream src immediately once the server reports online.
+//   2. Use a canvas-based frame detector: draw the img to canvas every second
+//      and check whether pixels have non-zero values — if they do, the stream
+//      is delivering frames → show the img and hide the offline overlay.
+//   3. Keep polling /camera/status to detect stream going offline, and
+//      reconnect (fresh src with cache-bust) when it comes back online.
 (function () {
   const STREAM_URL = "{{ url_for('camera.stream') }}";
   const STATUS_URL = "{{ url_for('camera.status') }}";
   const img        = document.getElementById('dashboard-cam');
   const offline    = document.getElementById('dashboard-cam-offline');
   const statusText = document.getElementById('camera-status-text');
-  let   isAttached = false;
 
-  // Attach the stream once — never detach while the preview is visible.
-  // Reassigning src or toggling display tears down the MJPEG connection
-  // and causes the black flash. Once live, we trust the stream itself;
-  // we only use the status endpoint to decide when to first attach.
-  function attachStream() {
-    if (!img || isAttached) return;
-    isAttached = true;
-    img.onload = function () {
-      img.style.opacity = '1';
-      if (offline) offline.style.opacity = '0';
-      if (statusText) statusText.textContent = 'LIVE';
-    };
-    img.src = STREAM_URL;
+  let isAttached   = false;
+  let isLive       = false;
+  let frameCheckId = null;
+  let canvas, ctx;
+
+  // Canvas used to sample pixels and detect actual frame delivery.
+  function initCanvas() {
+    if (canvas) return;
+    canvas = document.createElement('canvas');
+    canvas.width  = 8;   // tiny — we only need a liveness signal
+    canvas.height = 8;
+    ctx = canvas.getContext('2d', { willReadFrequently: true });
   }
 
+  function hasVisiblePixels() {
+    if (!img || !ctx) return false;
+    try {
+      ctx.drawImage(img, 0, 0, 8, 8);
+      const d = ctx.getImageData(0, 0, 8, 8).data;
+      for (let i = 0; i < d.length; i += 4) {
+        // Any pixel that is not pure black means a real frame arrived.
+        if (d[i] > 10 || d[i+1] > 10 || d[i+2] > 10) return true;
+      }
+    } catch (e) { /* cross-origin or not-yet-loaded — treat as no pixels */ }
+    return false;
+  }
+
+  function showLive() {
+    if (isLive) return;
+    isLive = true;
+    if (img)     { img.style.opacity = '1'; }
+    if (offline) { offline.style.opacity = '0'; offline.style.pointerEvents = 'none'; }
+    if (statusText) statusText.textContent = 'LIVE';
+  }
+
+  function showOffline() {
+    isLive = false;
+    if (img)     { img.style.opacity = '0'; }
+    if (offline) { offline.style.opacity = '1'; offline.style.pointerEvents = ''; }
+    if (statusText) statusText.textContent = 'WAITING';
+  }
+
+  function startFrameCheck() {
+    if (frameCheckId) return;
+    initCanvas();
+    frameCheckId = setInterval(() => {
+      if (hasVisiblePixels()) {
+        showLive();
+      }
+      // If we've been attached for >4 s with no visible pixels, the stream
+      // might be stalled — let the status poll handle reconnection.
+    }, 800);
+  }
+
+  function stopFrameCheck() {
+    if (frameCheckId) { clearInterval(frameCheckId); frameCheckId = null; }
+  }
+
+  function attachStream() {
+    if (!img) return;
+    isAttached = true;
+    // Add cache-bust so the browser opens a fresh MJPEG connection.
+    img.src = STREAM_URL + '?' + Date.now();
+    startFrameCheck();
+  }
+
+  function detachStream() {
+    if (!img) return;
+    isAttached = false;
+    img.src    = '';
+    stopFrameCheck();
+    showOffline();
+  }
+
+  // Poll the status endpoint continuously.
+  // Unlike before, we don't stop polling after attaching — this lets us
+  // detect when the broadcaster goes offline and reconnect when they return.
   function checkCameraStatus() {
-    // Once attached, stop polling — the stream speaks for itself.
-    if (isAttached) return;
     fetch(STATUS_URL)
       .then(r => r.json())
       .then(data => {
         if (data.online) {
-          attachStream();
+          if (!isAttached) attachStream();
         } else {
+          // Stream went offline — tear down so we get a clean reconnect.
+          if (isAttached) detachStream();
           if (statusText) statusText.textContent = 'WAITING';
         }
       })
