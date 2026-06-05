@@ -184,6 +184,16 @@ def log_access(username_attempted, status, reason=None, user_id=None):
         except Exception:
             hashed_username = username_attempted  # fallback: store as-is
     ip = _get_real_ip()
+
+    # Resolve IP → human-readable location (city, region, country).
+    # Wrapped in try/except so a geo failure never breaks a login.
+    location = None
+    try:
+        from app.utils.geo_utils import get_location
+        location = get_location(ip)
+    except Exception:
+        pass
+
     entry = AccessLog(
         user_id=user_id,
         username_attempted=hashed_username,
@@ -192,6 +202,7 @@ def log_access(username_attempted, status, reason=None, user_id=None):
         status=status,
         reason=reason,
         is_unauthorized=(status == "blocked"),
+        location=location,
     )
     db.session.add(entry)
     db.session.commit()
