@@ -40,6 +40,9 @@ class AccessLog(db.Model):
     timestamp = db.Column(db.DateTime, default=now_pst, index=True)
     is_unauthorized = db.Column(db.Boolean, default=False)
     # Human-readable location derived from IP at login time (e.g. "Quezon City, Metro Manila, PH")
+    # NOTE: This column is added via _auto_migrate() / migrate_add_location.py.
+    # railway.toml runs the migration script before gunicorn starts, so by the
+    # time any request is served the column is guaranteed to exist.
     location = db.Column(db.String(200), nullable=True)
 
     def to_dict(self):
@@ -58,7 +61,7 @@ class AccessLog(db.Model):
             "id": self.id,
             "username": display_username,
             "ip": self.ip_address,
-            "location": self.location or "—",
+            "location": getattr(self, "location", None) or "—",
             "status": self.status,
             "reason": self.reason,
             "timestamp": self.timestamp.strftime('%Y-%m-%d %H:%M:%S') + ' PST',
