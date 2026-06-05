@@ -7,15 +7,16 @@ Resolves an IP address to a human-readable location string
 • No API key required.
 • Private / reserved IPs are short-circuited and returned as "Local / Private".
 • All network errors are caught so a geo failure never breaks a login.
-• Results are cached in-process (LRU, 512 entries) to avoid hitting the
+• Results are cached in-process (dict-based, 512 entries) to avoid hitting the
   external API on every request from the same IP.
+
+FIX: Replaced lru_cache with a plain dict cache to avoid the known issue where
+lru_cache can cache raised exceptions in some CPython builds, poisoning all
+future lookups for a given IP after a single network failure.
 """
 
 import ipaddress
 import logging
-from functools import lru_cache
-
-import requests
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +24,10 @@ log = logging.getLogger(__name__)
 # fields=city,regionName,countryCode keeps the response tiny.
 _GEO_URL = "http://ip-api.com/json/{ip}?fields=status,city,regionName,countryCode"
 _TIMEOUT = 2  # seconds — must be short so it never slows down login
+
+# Simple bounded dict cache — avoids lru_cache exception-caching bug
+_cache: dict = {}
+_CACHE_MAX = 512
 
 
 def _is_private(ip: str) -> bool:
@@ -34,25 +39,41 @@ def _is_private(ip: str) -> bool:
         return False
 
 
-@lru_cache(maxsize=512)
 def _fetch_location(ip: str) -> str:
     """
     Internal cached lookup.  Only called for public IPs.
     Returns a formatted location string or a fallback on any error.
+    Uses a plain dict cache instead of lru_cache to avoid exception-caching bugs.
     """
+    if ip in _cache:
+        return _cache[ip]
+
+    result = "Unknown"
     try:
-        resp = requests.get(_GEO_URL.format(ip=ip), timeout=_TIMEOUT)
+        # Import here to avoid any module-level import issues
+        import requests as _requests
+        resp = _requests.get(_GEO_URL.format(ip=ip), timeout=_TIMEOUT)
         data = resp.json()
         if data.get("status") == "success":
             city    = data.get("city", "")
             region  = data.get("regionName", "")
             country = data.get("countryCode", "")
             parts = [p for p in [city, region, country] if p]
-            return ", ".join(parts) if parts else "Unknown"
-        return "Unknown"
+            result = ", ".join(parts) if parts else "Unknown"
     except Exception as exc:
         log.debug("geo_utils: lookup failed for %s — %s", ip, exc)
-        return "Unknown"
+        result = "Unknown"
+
+    # Evict oldest entry if cache is full
+    if len(_cache) >= _CACHE_MAX:
+        try:
+            oldest_key = next(iter(_cache))
+            del _cache[oldest_key]
+        except (StopIteration, RuntimeError):
+            pass
+
+    _cache[ip] = result
+    return result
 
 
 def get_location(ip: str) -> str:
