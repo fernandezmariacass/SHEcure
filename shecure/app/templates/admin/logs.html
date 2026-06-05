@@ -9,16 +9,17 @@
     <h2 class="card-title">Login & Access History</h2>
     <span class="badge badge-gray">{{ logs|length }} records</span>
   </div>
-  <div class="table-wrapper" style="overflow-x:hidden">
+  <div class="table-wrapper" style="overflow-x:auto">
     <table aria-label="Access log table" class="logs-table">
       <colgroup>
-        <col style="width:14.28%">
-        <col style="width:14.28%">
-        <col style="width:14.28%">
-        <col style="width:14.28%">
-        <col style="width:14.28%">
-        <col style="width:14.28%">
-        <col style="width:14.28%">
+        <col style="width:6%">
+        <col style="width:14%">
+        <col style="width:13%">
+        <col style="width:13%">
+        <col style="width:18%">
+        <col style="width:10%">
+        <col style="width:18%">
+        <col style="width:8%">
       </colgroup>
       <thead>
         <tr>
@@ -26,6 +27,7 @@
           <th scope="col">Timestamp (PST)</th>
           <th scope="col">Username</th>
           <th scope="col">IP Address</th>
+          <th scope="col">Location</th>
           <th scope="col">Status</th>
           <th scope="col">Reason</th>
           <th scope="col">Unauth</th>
@@ -40,6 +42,15 @@
           </td>
           <td style="font-size:.85rem;word-break:break-all">{{ log.user.username if log.user else '—' }}</td>
           <td class="text-mono" style="font-size:.82rem;word-break:break-all">{{ log.ip_address }}</td>
+          <td style="font-size:.82rem;word-break:break-word">
+            {% if log.location and log.location != 'Unknown' %}
+              <span title="{{ log.location }}">{{ log.location }}</span>
+            {% elif log.location == 'Local / Private' %}
+              <span class="text-muted" title="Private/local network"> Local</span>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
           <td>
             <span class="badge {% if log.status == 'success' %}badge-success{% elif log.status == 'blocked' %}badge-danger{% elif log.status == 'logout' %}badge-info{% else %}badge-warning{% endif %} badge-dot">
               {{ log.status }}
@@ -56,7 +67,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="7" style="text-align:center;padding:3rem;color:var(--gray-400)">No access logs yet</td>
+          <td colspan="8" style="text-align:center;padding:3rem;color:var(--gray-400)">No access logs yet</td>
         </tr>
         {% endfor %}
       </tbody>
