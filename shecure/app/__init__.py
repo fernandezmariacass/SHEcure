@@ -199,6 +199,8 @@ def _auto_migrate():
         db.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_2fa_token VARCHAR(64)"),
         db.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_2fa_token_expiry TIMESTAMP"),
         db.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS username_hash VARCHAR(64)"),
+        # ── Geo-location feature ──────────────────────────────────────────────
+        db.text("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS location VARCHAR(200)"),
         db.text(
             "CREATE TABLE IF NOT EXISTS used_totp_codes ("
             "id SERIAL PRIMARY KEY, "
