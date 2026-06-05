@@ -195,75 +195,100 @@ def _auto_migrate():
 
     # ── Step 6: Raw SQL hardening — always use db.text(), never string interpolation ──
 
+    # Detect the database dialect so we can apply dialect-specific DDL.
+    # SQLite does NOT support "ALTER TABLE ... ADD COLUMN IF NOT EXISTS" —
+    # that syntax was only added in SQLite 3.37, but many system Pythons ship
+    # with an older SQLite.  We use a helper that checks whether a column
+    # already exists before issuing the ALTER, which is safe on every backend.
+    _dialect = db.engine.dialect.name  # "postgresql", "sqlite", etc.
+
+    def _add_column_safe(conn, table, column, col_type):
+        """Add *column* to *table* only if it does not already exist.
+        Works on both PostgreSQL (IF NOT EXISTS) and SQLite (manual check)."""
+        try:
+            if _dialect == "postgresql":
+                conn.execute(db.text(
+                    f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"
+                ))
+            else:
+                # SQLite: check information_schema-equivalent via PRAGMA
+                result = conn.execute(db.text(f"PRAGMA table_info({table})"))
+                existing = [row[1] for row in result.fetchall()]
+                if column not in existing:
+                    conn.execute(db.text(
+                        f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"
+                    ))
+            conn.commit()
+        except Exception as _e:
+            conn.rollback()
+            log.warning("[auto_migrate] SKIPPED %s.%s (%s)", table, column, _e)
+
     # FIX: Run the location column migration FIRST and in isolation, so that
     # even if subsequent migrations fail, the column is guaranteed to exist
     # before any login request is processed.  A missing location column was
     # the primary cause of the post-deploy 500 crash.
     with db.engine.connect() as _conn:
-        try:
-            _conn.execute(db.text(
-                "ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS location VARCHAR(200)"
-            ))
-            _conn.commit()
-            log.info("[auto_migrate] OK (priority): location column ensured on access_logs")
-        except Exception as _e:
-            _conn.rollback()
-            log.warning("[auto_migrate] SKIPPED location column (%s) — will retry in main loop", _e)
+        _add_column_safe(_conn, "access_logs", "location", "VARCHAR(200)")
+        log.info("[auto_migrate] OK (priority): location column ensured on access_logs")
 
     migrations = [
-        db.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS require_2fa_setup BOOLEAN DEFAULT FALSE"),
-        db.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_2fa_token VARCHAR(64)"),
-        db.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_2fa_token_expiry TIMESTAMP"),
-        db.text("ALTER TABLE users ADD COLUMN IF NOT EXISTS username_hash VARCHAR(64)"),
+        ("users", "require_2fa_setup", "BOOLEAN DEFAULT FALSE"),
+        ("users", "reset_2fa_token", "VARCHAR(64)"),
+        ("users", "reset_2fa_token_expiry", "TIMESTAMP"),
+        ("users", "username_hash", "VARCHAR(64)"),
         # ── Geo-location feature (also run above as priority migration) ───────
-        db.text("ALTER TABLE access_logs ADD COLUMN IF NOT EXISTS location VARCHAR(200)"),
-        db.text(
-            "CREATE TABLE IF NOT EXISTS used_totp_codes ("
-            "id SERIAL PRIMARY KEY, "
-            "lookup_key VARCHAR(80) UNIQUE NOT NULL, "
-            "used_at TIMESTAMP NOT NULL DEFAULT NOW())"
-        ),
-        # ── Admin limit DB trigger ────────────────────────────────────────────
-        # This enforces the 5-admin cap at the PostgreSQL level, so it fires
-        # even when the database is edited directly (e.g. via the Railway
-        # dashboard), bypassing the SQLAlchemy ORM event listeners in user.py.
-        db.text("""
-            CREATE OR REPLACE FUNCTION enforce_admin_limit()
-            RETURNS TRIGGER AS $$
-            BEGIN
-                IF NEW.role = 'admin' THEN
-                    IF (
-                        SELECT COUNT(*)
-                        FROM users
-                        WHERE role = 'admin'
-                          AND id != COALESCE(NEW.id, -1)
-                    ) >= 5 THEN
-                        RAISE EXCEPTION
-                            'Admin limit of 5 has been reached. Cannot add or promote another admin.';
-                    END IF;
-                END IF;
-                RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql;
-        """),
-        db.text("""
-            DROP TRIGGER IF EXISTS trg_enforce_admin_limit ON users;
-        """),
-        db.text("""
-            CREATE TRIGGER trg_enforce_admin_limit
-                BEFORE INSERT OR UPDATE ON users
-                FOR EACH ROW EXECUTE FUNCTION enforce_admin_limit();
-        """),
+        ("access_logs", "location", "VARCHAR(200)"),
     ]
     with db.engine.connect() as conn:
-        for sql in migrations:
-            try:
-                conn.execute(sql)
-                conn.commit()
-                log.info("[auto_migrate] OK: %s", sql)
-            except Exception as e:
-                conn.rollback()
-                log.warning("[auto_migrate] SKIPPED (%s): %s", e, sql)
+        for (tbl, col, coltype) in migrations:
+            _add_column_safe(conn, tbl, col, coltype)
+            log.info("[auto_migrate] OK: %s.%s", tbl, col)
+
+    # ── PostgreSQL-only migrations (triggers, functions, etc.) ────────────────
+    if _dialect == "postgresql":
+        pg_migrations = [
+            db.text(
+                "CREATE TABLE IF NOT EXISTS used_totp_codes ("
+                "id SERIAL PRIMARY KEY, "
+                "lookup_key VARCHAR(80) UNIQUE NOT NULL, "
+                "used_at TIMESTAMP NOT NULL DEFAULT NOW())"
+            ),
+            # ── Admin limit DB trigger ────────────────────────────────────────
+            db.text("""
+                CREATE OR REPLACE FUNCTION enforce_admin_limit()
+                RETURNS TRIGGER AS $$
+                BEGIN
+                    IF NEW.role = 'admin' THEN
+                        IF (
+                            SELECT COUNT(*)
+                            FROM users
+                            WHERE role = 'admin'
+                              AND id != COALESCE(NEW.id, -1)
+                        ) >= 5 THEN
+                            RAISE EXCEPTION
+                                'Admin limit of 5 has been reached. Cannot add or promote another admin.';
+                        END IF;
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql;
+            """),
+            db.text("DROP TRIGGER IF EXISTS trg_enforce_admin_limit ON users;"),
+            db.text("""
+                CREATE TRIGGER trg_enforce_admin_limit
+                    BEFORE INSERT OR UPDATE ON users
+                    FOR EACH ROW EXECUTE FUNCTION enforce_admin_limit();
+            """),
+        ]
+        with db.engine.connect() as conn:
+            for sql in pg_migrations:
+                try:
+                    conn.execute(sql)
+                    conn.commit()
+                    log.info("[auto_migrate] OK (pg): %s", sql)
+                except Exception as e:
+                    conn.rollback()
+                    log.warning("[auto_migrate] SKIPPED pg migration (%s): %s", e, sql)
 
 
 def _seed_default_admin():
