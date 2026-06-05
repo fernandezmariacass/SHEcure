@@ -40,3 +40,6 @@ segno==1.6.1
 # Column-level encryption for ip_address and user_agent in logs
 sqlalchemy-utils==0.41.2
 simple-websocket>=1.0.0
+
+# AesEngine encryption backend for sqlalchemy-utils StringEncryptedType
+pycryptodome==3.20.0
