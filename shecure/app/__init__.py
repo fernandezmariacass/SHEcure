@@ -23,7 +23,6 @@ def create_app():
         raise RuntimeError("SECRET_KEY environment variable must be set in production.")
     app.config["SECRET_KEY"] = secret_key
 
-    # ── Step 3: Encryption key check ─────────────────────────────────────────
     enc_key = os.environ.get("DB_ENCRYPTION_KEY", "")
     if not enc_key:
         raise RuntimeError("DB_ENCRYPTION_KEY must be set.")
@@ -38,7 +37,6 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
-    # ── Step 5: SSL/TLS for database connections ──────────────────────────────
     is_production = (
         os.environ.get("RAILWAY_ENVIRONMENT") is not None
         or os.environ.get("FLASK_ENV") == "production"
@@ -54,10 +52,6 @@ def create_app():
 
     is_https = is_production
     app.config["SESSION_COOKIE_SECURE"] = is_https
-    # FIX: x_for=1 trusts exactly ONE X-Forwarded-For hop (the Railway load balancer).
-    # Railway strips any client-supplied X-Forwarded-For headers before adding its own,
-    # so this is safe. If you move to a different host, verify that the host also strips
-    # attacker-supplied XFF headers — otherwise set x_for to the number of trusted proxies.
     app.wsgi_app = __import__(
         "werkzeug.middleware.proxy_fix", fromlist=["ProxyFix"]
     ).ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
@@ -72,7 +66,6 @@ def create_app():
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Please log in to access SHEcure."
     login_manager.login_message_category = "warning"
-    # FIX: cap remember-me cookies to 7 days (Flask-Login default varies by version)
     from datetime import timedelta as _td
     login_manager.remember_cookie_duration = _td(days=7)
 
@@ -143,8 +136,6 @@ def create_app():
 
         if is_https:
             response.headers["Strict-Transport-Security"] = (
-                # FIX: added `preload` — submit this domain to hstspreload.org
-                # to prevent first-visit downgrade attacks that HSTS alone cannot stop.
                 "max-age=31536000; includeSubDomains; preload"
             )
 
@@ -157,19 +148,11 @@ def create_app():
 
         from flask import g
         nonce = g.get("csp_nonce", "")
-        # Remove any CSP header already added by Railway or other middleware
-        # to prevent the browser ignoring a duplicate directive.
         response.headers.remove("Content-Security-Policy")
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             f"script-src 'self' 'nonce-{nonce}' "
             "https://www.google.com https://www.gstatic.com; "
-            # Keep 'unsafe-inline' for style-src WITHOUT a nonce.
-            # Browsers intentionally ignore 'unsafe-inline' in a directive that
-            # also contains a nonce, so mixing them blocks all element-level
-            # style="" attributes (which cannot carry nonces).  The nonce is
-            # only useful on <style> blocks and <script> tags, so we apply it
-            # only to script-src below.
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "img-src 'self' data: blob:; "
@@ -182,36 +165,26 @@ def create_app():
 
 
 def _auto_migrate():
-    """Add any missing columns, tables, and DB-level constraints that newer code expects."""
+    """Add any missing columns that newer code expects — covers ALL columns used in models."""
     import logging
     log = logging.getLogger(__name__)
 
     try:
-        from app.models.user import BlockedIP  # noqa: F401
         db.create_all()
-        log.info("[auto_migrate] db.create_all() re-ran — blocked_ips ensured")
+        log.info("[auto_migrate] db.create_all() completed")
     except Exception as exc:
         log.error("[auto_migrate] db.create_all() failed: %s", exc)
 
-    # ── Step 6: Raw SQL hardening — always use db.text(), never string interpolation ──
-
-    # Detect the database dialect so we can apply dialect-specific DDL.
-    # SQLite does NOT support "ALTER TABLE ... ADD COLUMN IF NOT EXISTS" —
-    # that syntax was only added in SQLite 3.37, but many system Pythons ship
-    # with an older SQLite.  We use a helper that checks whether a column
-    # already exists before issuing the ALTER, which is safe on every backend.
-    _dialect = db.engine.dialect.name  # "postgresql", "sqlite", etc.
+    _dialect = db.engine.dialect.name
 
     def _add_column_safe(conn, table, column, col_type):
-        """Add *column* to *table* only if it does not already exist.
-        Works on both PostgreSQL (IF NOT EXISTS) and SQLite (manual check)."""
+        """Add column to table only if it does not already exist."""
         try:
             if _dialect == "postgresql":
                 conn.execute(db.text(
                     f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}"
                 ))
             else:
-                # SQLite: check information_schema-equivalent via PRAGMA
                 result = conn.execute(db.text(f"PRAGMA table_info({table})"))
                 existing = [row[1] for row in result.fetchall()]
                 if column not in existing:
@@ -223,28 +196,35 @@ def _auto_migrate():
             conn.rollback()
             log.warning("[auto_migrate] SKIPPED %s.%s (%s)", table, column, _e)
 
-    # FIX: Run the location column migration FIRST and in isolation, so that
-    # even if subsequent migrations fail, the column is guaranteed to exist
-    # before any login request is processed.  A missing location column was
-    # the primary cause of the post-deploy 500 crash.
-    with db.engine.connect() as _conn:
-        _add_column_safe(_conn, "access_logs", "location", "VARCHAR(200)")
-        log.info("[auto_migrate] OK (priority): location column ensured on access_logs")
-
+    # FIX: Comprehensive migration list — includes ALL columns referenced in code
+    # that may not exist on older deployments. Run location first (critical for login).
     migrations = [
+        # access_logs
+        ("access_logs", "location", "VARCHAR(200)"),
+        # users — 2FA and reset columns
         ("users", "require_2fa_setup", "BOOLEAN DEFAULT FALSE"),
         ("users", "reset_2fa_token", "VARCHAR(64)"),
         ("users", "reset_2fa_token_expiry", "TIMESTAMP"),
         ("users", "username_hash", "VARCHAR(64)"),
-        # ── Geo-location feature (also run above as priority migration) ───────
-        ("access_logs", "location", "VARCHAR(200)"),
+        # FIX: notify_on_new_login and last_login_fingerprint are accessed in
+        # email_utils.py and auth.py but were never in the migration list —
+        # their absence caused AttributeError 500s on every successful login.
+        ("users", "notify_on_new_login", "BOOLEAN DEFAULT TRUE"),
+        ("users", "last_login_fingerprint", "VARCHAR(64)"),
+        # FIX: unauthorized_alerts columns used in to_dict() and alert routes
+        # but never added by the migrator — caused 500s when the alerts page loaded.
+        ("unauthorized_alerts", "alert_type", "VARCHAR(40) DEFAULT 'unauthorized_access'"),
+        ("unauthorized_alerts", "username_attempted", "VARCHAR(80)"),
+        # blocked_ips — block_type column used by is_ip_blocked()
+        ("blocked_ips", "block_type", "VARCHAR(20) DEFAULT 'honeypot'"),
     ]
+
     with db.engine.connect() as conn:
         for (tbl, col, coltype) in migrations:
             _add_column_safe(conn, tbl, col, coltype)
             log.info("[auto_migrate] OK: %s.%s", tbl, col)
 
-    # ── PostgreSQL-only migrations (triggers, functions, etc.) ────────────────
+    # PostgreSQL-only migrations
     if _dialect == "postgresql":
         pg_migrations = [
             db.text(
@@ -253,7 +233,6 @@ def _auto_migrate():
                 "lookup_key VARCHAR(80) UNIQUE NOT NULL, "
                 "used_at TIMESTAMP NOT NULL DEFAULT NOW())"
             ),
-            # ── Admin limit DB trigger ────────────────────────────────────────
             db.text("""
                 CREATE OR REPLACE FUNCTION enforce_admin_limit()
                 RETURNS TRIGGER AS $$
@@ -285,10 +264,10 @@ def _auto_migrate():
                 try:
                     conn.execute(sql)
                     conn.commit()
-                    log.info("[auto_migrate] OK (pg): %s", sql)
+                    log.info("[auto_migrate] OK (pg): %s", str(sql)[:60])
                 except Exception as e:
                     conn.rollback()
-                    log.warning("[auto_migrate] SKIPPED pg migration (%s): %s", e, sql)
+                    log.warning("[auto_migrate] SKIPPED pg migration (%s)", e)
 
 
 def _seed_default_admin():
