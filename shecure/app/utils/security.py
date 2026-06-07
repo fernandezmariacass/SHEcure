@@ -503,7 +503,7 @@ def register_security_middleware(app):
             or any(path.startswith(p) for p in ("/login", "/register", "/clear-ban"))
         )
 
-        if not _skip_ban_check:
+        if not _skip_ban_check and not is_ip_allowed(ip):
             cookie_banned = request.cookies.get(_BAN_COOKIE) == "1"
             mem_banned    = any(i in _INMEMORY_BANNED_IPS for i in all_ips)
 
