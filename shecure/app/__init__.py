@@ -54,7 +54,7 @@ def create_app():
     app.config["SESSION_COOKIE_SECURE"] = is_https
     app.wsgi_app = __import__(
         "werkzeug.middleware.proxy_fix", fromlist=["ProxyFix"]
-    ).ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+    ).ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=1, x_prefix=1)  # FIX: x_for=2 handles Railway's dual-hop proxy chain (load balancer + edge node)
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["PERMANENT_SESSION_LIFETIME"] = 3600
