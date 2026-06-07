@@ -297,6 +297,11 @@ _EXEMPT_PATH_PREFIXES = (
     "/camera/status",
     "/camera/broadcaster-status",   # FIX: path-level fallback for broadcaster_status
     "/static/",
+    "/login",           # FIX: must be reachable even when ENFORCE_IP_ALLOWLIST=true
+                        # or when endpoint resolution fails before the exempt check.
+                        # auth.login is in EXEMPT_ENDPOINTS but that check is skipped
+                        # when request.endpoint is None — adding the path here ensures
+                        # the login page is always accessible so users are never locked out.
     "/register",
     "/logout",
     "/banned",          # dead-end page for honeypot-banned IPs — must be reachable
