@@ -269,6 +269,7 @@ EXEMPT_ENDPOINTS = {
     "auth.login",   # FIX: exempt login from middleware; the login route does its own ban checks
     "auth.health",
     "auth.banned",
+    "auth.clear_ban",   # FIX: cookie-clearing endpoint must be reachable by banned IPs
     "static",
     "auth.register",
     "auth.logout",
@@ -305,6 +306,9 @@ _EXEMPT_PATH_PREFIXES = (
     "/register",
     "/logout",
     "/banned",          # dead-end page for honeypot-banned IPs — must be reachable
+    "/clear-ban",       # FIX: cookie-clearing endpoint — must bypass ban check so
+                        # users whose IP was unblocked via UNBLOCK_IP env var can clear
+                        # their stale _hp_block browser cookie and regain access.
     "/health",          # Railway healthcheck endpoint — must always be reachable
     # NOTE: honeypot paths are intentionally NOT listed here.
     # A banned IP must be blocked even before reaching a honeypot route.
@@ -477,76 +481,88 @@ def register_security_middleware(app):
         if path in _HONEYPOT_INTERACTIVE_PATHS:
             return  # fall through to blueprint — it handles the response
 
-        cookie_banned = request.cookies.get(_BAN_COOKIE) == "1"
-        mem_banned    = any(i in _INMEMORY_BANNED_IPS for i in all_ips)
+        # FIX: also skip the ban check for auth-critical paths.
+        # /login, /register, /clear-ban must always be reachable even for
+        # cookie-banned IPs — otherwise a user whose IP was unblocked via
+        # UNBLOCK_IP has no way to clear their stale _hp_block browser cookie
+        # and will be permanently locked out despite being removed from the DB.
+        _BAN_EXEMPT_PATHS = frozenset({"/login", "/register", "/banned", "/clear-ban", "/health"})
+        _skip_ban_check = (
+            path in _BAN_EXEMPT_PATHS
+            or any(path.startswith(p) for p in ("/login", "/register", "/clear-ban"))
+        )
 
-        # is_ip_blocked() now returns the block_type string or None
-        db_block_type = None
-        try:
-            for _chk_ip in all_ips:
-                _bt = is_ip_blocked(_chk_ip)
-                if _bt:
-                    db_block_type = _bt
-                    break
-        except Exception:
-            pass
+        if not _skip_ban_check:
+            cookie_banned = request.cookies.get(_BAN_COOKIE) == "1"
+            mem_banned    = any(i in _INMEMORY_BANNED_IPS for i in all_ips)
 
-        # Determine effective block type:
-        # cookie / memory flags are always from a honeypot path hit (24 h ban).
-        # Only a DB entry distinguishes brute_force (30 min) from honeypot (24 h).
-        effective_block_type = None
-        if db_block_type:
-            effective_block_type = db_block_type        # "brute_force" | "honeypot" | "admin"
-        elif cookie_banned or mem_banned:
-            effective_block_type = "honeypot"           # cookie/memory = honeypot path hit
-
-        if effective_block_type:
+            # is_ip_blocked() now returns the block_type string or None
+            db_block_type = None
             try:
-                log_access("unknown", "blocked",
-                           reason=f"IP blocked ({effective_block_type})")
+                for _chk_ip in all_ips:
+                    _bt = is_ip_blocked(_chk_ip)
+                    if _bt:
+                        db_block_type = _bt
+                        break
             except Exception:
                 pass
 
-            if path == "/banned":
-                return  # let /banned route render normally, no loop
+            # Determine effective block type:
+            # cookie / memory flags are always from a honeypot path hit (24 h ban).
+            # Only a DB entry distinguishes brute_force (30 min) from honeypot (24 h).
+            effective_block_type = None
+            if db_block_type:
+                effective_block_type = db_block_type        # "brute_force" | "honeypot" | "admin"
+            elif cookie_banned or mem_banned:
+                effective_block_type = "honeypot"           # cookie/memory = honeypot path hit
 
-            from flask import render_template as _rt
-            _secure_cookie = (
-                os.environ.get("RAILWAY_ENVIRONMENT") is not None
-                or os.environ.get("FLASK_ENV") == "production"
-            )
+            if effective_block_type:
+                try:
+                    log_access("unknown", "blocked",
+                               reason=f"IP blocked ({effective_block_type})")
+                except Exception:
+                    pass
 
-            if effective_block_type == "brute_force":
-                # Short 30-minute cooldown — show the rate-limit page (429 style)
-                resp = make_response(
-                    _rt("errors/429.html",
-                        client_ip=ip,
-                        block_minutes=30,
-                        block_reason="Too many failed login attempts from this IP."),
-                    429,
+                if path == "/banned":
+                    return  # let /banned route render normally, no loop
+
+                from flask import render_template as _rt
+                _secure_cookie = (
+                    os.environ.get("RAILWAY_ENVIRONMENT") is not None
+                    or os.environ.get("FLASK_ENV") == "production"
                 )
-                # Short cookie — expires with the block (30 min = 1800 s)
-                resp.set_cookie(
-                    "_bf_block", "1",
-                    max_age=1800,
-                    httponly=True,
-                    samesite="Lax",
-                    secure=_secure_cookie,
-                )
-            else:
-                # Honeypot / admin ban — hard 403 with 24-hour cookie
-                resp = make_response(
-                    _rt("errors/403.html", client_ip=ip),
-                    403,
-                )
-                resp.set_cookie(
-                    "_hp_block", "1",
-                    max_age=86400,
-                    httponly=True,
-                    samesite="Lax",
-                    secure=_secure_cookie,
-                )
-            return resp
+
+                if effective_block_type == "brute_force":
+                    # Short 30-minute cooldown — show the rate-limit page (429 style)
+                    resp = make_response(
+                        _rt("errors/429.html",
+                            client_ip=ip,
+                            block_minutes=30,
+                            block_reason="Too many failed login attempts from this IP."),
+                        429,
+                    )
+                    # Short cookie — expires with the block (30 min = 1800 s)
+                    resp.set_cookie(
+                        "_bf_block", "1",
+                        max_age=1800,
+                        httponly=True,
+                        samesite="Lax",
+                        secure=_secure_cookie,
+                    )
+                else:
+                    # Honeypot / admin ban — hard 403 with 24-hour cookie
+                    resp = make_response(
+                        _rt("errors/403.html", client_ip=ip),
+                        403,
+                    )
+                    resp.set_cookie(
+                        "_hp_block", "1",
+                        max_age=86400,
+                        httponly=True,
+                        samesite="Lax",
+                        secure=_secure_cookie,
+                    )
+                return resp
 
         # Always allow if endpoint is exempt or can't be resolved
         if request.endpoint is None or request.endpoint in EXEMPT_ENDPOINTS:
