@@ -24,6 +24,7 @@ Registration:
 
 import logging
 from flask import Blueprint, request, Response
+from app.utils.security import _get_real_ip
 
 log = logging.getLogger(__name__)
 
@@ -243,7 +244,7 @@ def _fire_honeypot_route_alert(flavour: str) -> None:
     from app.models.logs import UnauthorizedAlert, AccessLog
     from app.utils.security import block_ip
 
-    ip = request.remote_addr or "unknown"
+    ip = _get_real_ip()  # FIX: use XFF-aware helper, not raw remote_addr (avoids banning the load balancer IP)
     ua = (request.user_agent.string or "")[:512]
     endpoint = request.path
     method = request.method
@@ -444,7 +445,7 @@ def _log_honeypot_visit(flavour: str) -> None:
     """
     from app.models.logs import AccessLog
 
-    ip = request.remote_addr or "unknown"
+    ip = _get_real_ip()  # FIX: use XFF-aware helper
     ua = (request.user_agent.string or "")[:512]
     endpoint = request.path
 
@@ -505,7 +506,7 @@ def _make_handler(body, content_type: str, status: int, flavour: str):
         else:
             # POST or file path GET — render the system banned page (pinkish).
             from flask import render_template, current_app
-            ip = request.remote_addr or "unknown"
+            ip = _get_real_ip()  # FIX: use XFF-aware helper
             with current_app.app_context():
                 resp = Response(
                     render_template("errors/banned.html", client_ip=ip),
