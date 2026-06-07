@@ -437,9 +437,20 @@ def register_security_middleware(app):
 
         # ── Step 1: honeypot path hit ─────────────────────────────────────────
         if path in _HONEYPOT_PATHS:
+            # FIX: skip banning IPs that are explicitly on the allowlist.
+            # This prevents admins/trusted users from being permanently locked out
+            # if a browser extension or background tool probes a honeypot path.
+            if is_ip_allowed(ip):
+                try:
+                    log_access("unknown", "allowed",
+                               reason=f"Honeypot hit by allowlisted IP (not banned): {path}")
+                except Exception:
+                    pass
+                return  # let the request through without banning
+
             # Ban ALL IP variants immediately regardless of GET or POST.
             # For interactive paths the blueprint will still serve the decoy
-            # page on GET so the attacker doesn't know they're caught — but
+            # page on GET so the attacker doesn't know they are caught — but
             # the ban is already in place so /login is blocked from this point.
             for _ban_ip in all_ips:
                 _INMEMORY_BANNED_IPS.add(_ban_ip)
