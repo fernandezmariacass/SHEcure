@@ -266,6 +266,7 @@ def log_unauthorized_alert(ip, endpoint, method, user_agent, cached_body=""):
 
 # ── Exempt endpoints (no IP check) ───────────────────────────────────────────
 EXEMPT_ENDPOINTS = {
+    "auth.login",   # FIX: exempt login from middleware; the login route does its own ban checks
     "auth.health",
     "auth.banned",
     "static",
