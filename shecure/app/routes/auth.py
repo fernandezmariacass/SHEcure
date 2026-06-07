@@ -380,7 +380,13 @@ def login():
         next_page = request.args.get("next")
         if not next_page or not _is_safe_url(next_page):
             next_page = url_for("dashboard.home")
-        return redirect(next_page)
+        # FIX: clear any stale ban cookies on successful login so a legitimate user
+        # whose _hp_block cookie was mistakenly set (e.g. from a previous proxy bug)
+        # is not permanently locked out for 24h after the block is resolved.
+        resp = redirect(next_page)
+        resp.delete_cookie("_hp_block")
+        resp.delete_cookie("_bf_block")
+        return resp
 
     totp_required = "_totp_pending_user" in session
     return render_template("auth/login.html", totp_required=totp_required)
