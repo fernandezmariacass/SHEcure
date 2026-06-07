@@ -168,7 +168,8 @@ def login():
         remember = bool(request.form.get("remember"))
         recaptcha_token = request.form.get("g-recaptcha-response", "")
         totp_code = request.form.get("totp_code", "").strip()
-        ip = request.remote_addr
+        from app.utils.security import _get_real_ip
+        ip = _get_real_ip()  # FIX: use XFF-aware helper for accurate geolocation on mobile
         ua = request.user_agent.string
 
         from app.utils.security import is_ip_blocked
