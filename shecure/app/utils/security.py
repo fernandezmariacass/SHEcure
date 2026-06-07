@@ -406,7 +406,19 @@ def register_security_middleware(app):
 
 
         # ── Collect ALL possible client IPs (handles Railway proxy headers) ───
-        all_ips = set(filter(None, [
+        # FIX: filter out private/loopback IPs (e.g. Railway's internal LB address)
+        # so we never ban a shared infrastructure IP and block all users.
+        def _is_public_ip(addr):
+            if not addr:
+                return False
+            try:
+                parsed = ipaddress.ip_address(addr)
+                return not (parsed.is_private or parsed.is_loopback or
+                            parsed.is_link_local or parsed.is_unspecified)
+            except ValueError:
+                return False
+
+        all_ips = set(filter(_is_public_ip, [
             ip,
             request.remote_addr,
             request.headers.get("X-Forwarded-For", "").split(",")[0].strip(),
