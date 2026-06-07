@@ -684,6 +684,31 @@ def banned():
     return render_template("errors/banned.html", client_ip=ip), 403
 
 
+@auth_bp.route("/clear-ban")
+def clear_ban():
+    """
+    FIX: Emergency cookie-clearing endpoint.
+
+    Problem: When an admin uses the UNBLOCK_IP env var to remove an IP from the
+    DB blocklist, the user's browser still holds a _hp_block=1 cookie (httponly,
+    24-hour TTL) set by the security middleware.  Because the ban check in
+    enforce_security() runs BEFORE the exempt-endpoint check, a cookie-banned
+    IP cannot reach /login either — the middleware intercepts every request and
+    returns 403.html.
+
+    This endpoint is exempt from the ban check (via _BAN_EXEMPT_PATHS and
+    EXEMPT_ENDPOINTS in security.py) so a cookie-banned user CAN reach it.
+    It deletes both ban cookies and redirects to /login, restoring access.
+
+    Usage: navigate to  https://<your-app>/clear-ban  in the browser that is
+    showing "Access Denied".  The cookies are deleted and you land on /login.
+    """
+    resp = redirect(url_for("auth.login"))
+    resp.delete_cookie("_hp_block")
+    resp.delete_cookie("_bf_block")
+    return resp
+
+
 @auth_bp.route("/health")
 def health():
     return "ok", 200
