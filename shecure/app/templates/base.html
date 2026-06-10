@@ -34,7 +34,7 @@
         <span class="sidebar-nav-icon" aria-hidden="true">☆</span> Camera Feed
       </a>
       <a href="{{ url_for('dashboard.activity') }}" class="sidebar-nav-item" aria-label="Activity log">
-        <span class="sidebar-nav-icon" aria-hidden="true">꩜</span> Activity Log
+        <span class="sidebar-nav-icon" aria-hidden="true">𝜗ৎ</span> Activity Log
       </a>
       <a href="{{ url_for('dashboard.alerts') }}" class="sidebar-nav-item" aria-label="Security alerts">
         <span class="sidebar-nav-icon" aria-hidden="true">⟡</span> Alerts
@@ -103,7 +103,7 @@
           {% for cat, msg in messages %}
             <div class="alert alert-{{ cat }}" role="alert" data-auto-dismiss>
               <span aria-hidden="true">
-                {% if cat == 'success' %}⟢{% elif cat == 'danger' %}💀{% elif cat == 'warning' %}☁︎{% else %}☪︎{% endif %}
+                {% if cat == 'success' %}⟢{% elif cat == 'danger' %}≽{% elif cat == 'warning' %}☁︎{% else %}☪︎{% endif %}
               </span>
               {{ msg }}
             </div>
