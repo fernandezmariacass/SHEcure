@@ -1,316 +1,406 @@
 {% extends "base.html" %}
-{% block title %}Admin Panel{% endblock %}
-{% block page_title %}⚙️ Admin Panel{% endblock %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard Overview{% endblock %}
 
 {% block content %}
 <div class="pink-line"></div>
 
-<!-- ① Camera Feed (top) -->
-<div class="card" style="margin-bottom:2rem">
-  <div class="card-header" style="display:flex;align-items:center;gap:.75rem">
-    <h2 class="card-title" style="margin:0">♛ Camera Feed</h2>
-  </div>
-  <div class="card-body" style="display:flex;align-items:center;gap:1rem">
-    {% if ip_allowed %}
-    <a href="{{ url_for('camera.feed_page') }}" class="btn btn-primary btn-sm">▶ Open Camera Feed</a>
-    <small class="text-muted">Live feed is available from your current IP.</small>
-    {% else %}
-    <span class="btn btn-outline btn-sm" style="opacity:.45;cursor:not-allowed;pointer-events:none">♛ Camera Feed</span>
-    <small class="text-muted" style="color:var(--danger)">Access blocked — your IP is not on the allow-list.</small>
-    {% endif %}
-  </div>
-</div>
-
-<!-- ② Stats row -->
-<div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:2.5rem">
-  <div class="stat-card">
-    <div class="stat-icon stat-icon-pink" aria-hidden="true">۶ৎ</div>
-    <div><div class="stat-value">{{ users|length }}</div><div class="stat-label">Total Users</div></div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon stat-icon-amber" aria-hidden="true">☘︎</div>
-    <div><div class="stat-value" style="color:var(--warning)">{{ pending }}</div><div class="stat-label">Pending</div></div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon stat-icon-blue" aria-hidden="true">❦</div>
-    <div><div class="stat-value">{{ ips|length }}</div><div class="stat-label">Allowed IPs</div></div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon stat-icon-red" aria-hidden="true">☺</div>
-    <div><div class="stat-value" style="color:var(--danger)">{{ alerts }}</div><div class="stat-label">Open Alerts</div></div>
-  </div>
-</div>
-
-<!-- ③ User Management -->
-<div class="card" class="admin-section">
+{% if current_user.role != 'member' %}
+<!-- Camera preview (non-members) -->
+<div class="card mt-3" role="region" aria-label="Camera feed preview">
   <div class="card-header">
-    <h2 class="card-title">۶ৎ User Management</h2>
+    <h2 class="card-title">📷 Camera Preview</h2>
+    <a href="{{ url_for('camera.feed_page') }}" class="btn btn-outline btn-sm">Full view →</a>
   </div>
-  <div class="table-wrapper" style="border:none;border-radius:0;overflow-x:auto">
-    <table aria-label="User management table" style="min-width:650px;width:100%;table-layout:fixed">
-      <colgroup>
-        <col style="width:25%">
-        <col style="width:25%">
-        <col style="width:25%">
-        <col style="width:25%">
-      </colgroup>
-      <thead>
-        <tr>
-          <th scope="col">User</th>
-          <th scope="col">Role</th>
-          <th scope="col">Status</th>
-          <th scope="col">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for user in users %}
-        <tr style="vertical-align:middle">
-          <td style="padding:1.1rem 1.2rem">
-            <div style="display:flex;align-items:center;gap:.6rem">
-              <div class="sidebar-avatar" style="width:30px;height:30px;font-size:.75rem;background:{{ user.avatar_color }}" aria-hidden="true">
-                {{ user.username[0] }}
-              </div>
-              <div style="font-weight:600;font-size:.88rem">{{ user.username }}</div>
-            </div>
-          </td>
-          <td style="padding:1.1rem 1.2rem"><span class="badge {% if user.role == 'admin' %}badge-pink{% else %}badge-gray{% endif %}">{{ user.role }}</span></td>
-          <td style="padding:1.1rem 1.2rem">
-            <span class="badge {% if user.is_approved %}badge-success{% else %}badge-warning{% endif %} badge-dot">
-              {% if user.is_approved %}Approved{% else %}Pending{% endif %}
-            </span>
-          </td>
-          <td style="padding:1.1rem 1.2rem">
-            {% if user.role == 'member' %}
-            <div class="btn-group-col">
-              {% if not user.is_approved %}
-              <form method="POST" action="{{ url_for('admin.approve_user', user_id=user.id) }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-success btn-sm">✓ Approve</button>
-              </form>
-              {% else %}
-              <form method="POST" action="{{ url_for('admin.revoke_user', user_id=user.id) }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-ghost btn-sm">Revoke</button>
-              </form>
-              {% endif %}
-              <form method="POST" action="{{ url_for('admin.unlock_user', user_id=user.id) }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-outline btn-sm" title="Clear failed login lockout">⟳ Unlock</button>
-              </form>
-              {% if user.totp_enabled %}
-              <form method="POST" action="{{ url_for('admin.reset_2fa', user_id=user.id) }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-ghost btn-sm"
-                  data-confirm="Send 2FA reset email to {{ user.username }}?"
-                  data-confirm-icon="🔐"
-                  data-confirm-ok="Send Email">
-                  🔐 Reset 2FA
-                </button>
-              </form>
-              {% endif %}
-              <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}"
-                    data-confirm="Permanently delete {{ user.username }}? This cannot be undone." data-confirm-icon="🗑" data-confirm-ok="Delete User">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-danger btn-sm">🗑 Remove</button>
-              </form>
-            </div>
-            {% else %}
-            <span class="text-muted" style="font-size:.85rem">—</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--gray-400)">No users found</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<!-- ④ IP Allow-list + Quick Links -->
-<div class="grid-2" style="align-items:start;margin-bottom:2rem">
-  <div class="card">
-    <div class="card-header">
-      <h2 class="card-title">𖦹 IP Allow-list</h2>
-    </div>
-    <div class="card-body">
-      <form method="POST" action="{{ url_for('admin.add_ip') }}" aria-label="Add IP to allow-list">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="ip-form">
-          <input class="form-control" type="text" name="ip_address"
-            placeholder="e.g. 192.168.1.100" required />
-          <input class="form-control" type="text" name="label"
-            placeholder="Label (optional)" />
-          <button type="submit" class="btn btn-primary btn-sm">+ Add</button>
-        </div>
-      </form>
-      <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:1rem">
-        {% for ip_entry in ips %}
-        <div class="ip-row">
-          <div class="ip-row-left">
-            <span class="ip-chip">{{ ip_entry.ip_address }}</span>
-            {% if ip_entry.label %}
-              <small class="text-muted">{{ ip_entry.label }}</small>
-            {% endif %}
+  <div class="card-body">
+    <div class="camera-container" style="max-height:320px">
+      <img src="" class="camera-feed"
+        alt="Live camera feed" id="dashboard-cam"
+        style="opacity:0;transition:opacity 0.3s" />
+      <div id="dashboard-cam-offline" style="
+          position:absolute;inset:0;
+          display:flex;align-items:center;justify-content:center;
+          min-height:180px;background:#111;border-radius:8px;
+          color:rgba(255,255,255,.4);font-size:.9rem;gap:.5rem;
+          transition:opacity 0.3s">
+        <span aria-hidden="true">⏾</span> Waiting for broadcaster…
+      </div>
+      <div class="camera-overlay" aria-hidden="true">
+        <div class="camera-corner camera-corner-tl"></div>
+        <div class="camera-corner camera-corner-tr"></div>
+        <div class="camera-corner camera-corner-bl"></div>
+        <div class="camera-corner camera-corner-br"></div>
+        <div class="camera-status-bar">
+          <div class="camera-live-dot">
+            <div class="live-indicator"></div>
+            <span id="camera-status-text">CHECKING</span>
           </div>
-          <form method="POST" action="{{ url_for('admin.delete_ip', ip_id=ip_entry.id) }}" style="display:inline;flex-shrink:0">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-danger btn-sm"
-              data-confirm="Remove {{ ip_entry.ip_address }} from allow-list?"
-              data-confirm-ok="Remove IP"
-              aria-label="Remove IP {{ ip_entry.ip_address }}">✕</button>
-          </form>
         </div>
-        {% else %}
-        <p class="text-muted" style="font-size:.9rem">No IPs in allow-list. Add one above.</p>
-        {% endfor %}
       </div>
     </div>
   </div>
+</div>
 
-  <div class="card">
+<!-- Stats -->
+<div class="stats-grid" role="region" aria-label="Security statistics">
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-pink" aria-hidden="true">⋆☀︎｡</div>
+    <div>
+      <div class="stat-value" id="total-logins">—</div>
+      <div class="stat-label">Total Logins</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-red" aria-hidden="true">👁</div>
+    <div>
+      <div class="stat-value" style="color:var(--danger)" id="open-alerts">{{ alert_count }}</div>
+      <div class="stat-label">Open Alerts</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-green" aria-hidden="true">⚔</div>
+    <div>
+      <div class="stat-value" id="success-logins">—</div>
+      <div class="stat-label">Successful Logins</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon stat-icon-amber" aria-hidden="true">⋆.𐙚 ̊</div>
+    <div>
+      <div class="stat-value" id="blocked-attempts">—</div>
+      <div class="stat-label">Blocked Attempts</div>
+    </div>
+  </div>
+</div>
+
+<!-- Main grid -->
+<div class="grid-2" style="align-items:start">
+
+  <!-- Recent Access -->
+  <div class="card" role="region" aria-label="Recent access log">
     <div class="card-header">
-      <h2 class="card-title">୭ Quick Links</h2>
+      <h2 class="card-title">Recent Activity</h2>
+      <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline btn-sm">View all →</a>
     </div>
-    <div class="card-body quick-links">
-      <a href="{{ url_for('admin.logs') }}" class="btn btn-outline btn-sm">𓇼 View Access Logs</a>
-      <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm">⟡ View Alerts</a>
-      <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline btn-sm">♡︎ Activity Log</a>
-
-      <form method="POST" action="{{ url_for('admin.test_email') }}" class="quick-link-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-outline btn-sm quick-link-btn">✉ Test Email</button>
-      </form>
-      <form method="POST" action="{{ url_for('admin.purge_logs') }}" class="quick-link-form" data-confirm="Purge logs older than 90 days?" data-confirm-icon="🗑" data-confirm-ok="Purge Logs">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-outline btn-sm quick-link-btn purge-btn">🗑 Purge Old Logs</button>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- ⑤ Honeypot Blocked IPs -->
-<div class="card" class="admin-section">
-  <div class="card-header" style="display:flex;align-items:center;gap:.75rem">
-    <h2 class="card-title" style="margin:0">🚫 Honeypot Blocked IPs</h2>
-    <small class="text-muted">Auto-banned for 24 h after triggering a fake route trap</small>
-  </div>
-  <div class="card-body">
-    <form method="POST" action="{{ url_for('admin.unblock_by_ip_string') }}"
-          aria-label="Unblock IP by address" class="ip-form unblock-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input id="unblock-ip-input" class="form-control" type="text" name="ip_address"
-             placeholder="e.g. 203.0.113.42" />
-      <button type="submit" class="btn btn-outline btn-sm"
-              data-confirm="Unblock this IP now? They will regain access immediately." data-confirm-icon="✓" data-confirm-ok="Unblock">
-        ✓ Unblock IP
-      </button>
-    </form>
-    {% if blocked %}
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:.9rem">
+    <div style="overflow-x:hidden">
+      <table aria-label="Recent activity table" class="logs-table" style="table-layout:fixed;width:100%">
+        <colgroup>
+          <col style="width:22%"><col style="width:30%"><col style="width:26%"><col style="width:22%">
+        </colgroup>
         <thead>
-          <tr style="border-bottom:1px solid var(--gray-200)">
-            <th style="padding:.75rem 1rem;text-align:left">IP Address</th>
-            <th style="padding:.75rem 1rem;text-align:left">Block Type</th>
-            <th style="padding:.75rem 1rem;text-align:left">Banned At (PST)</th>
-            <th style="padding:.75rem 1rem;text-align:left">Expires (PST)</th>
-            <th style="padding:.75rem 1rem;text-align:left">Reason</th>
-            <th style="padding:.75rem 1rem;text-align:left">Status</th>
-            <th style="padding:.75rem 1rem;text-align:left">Action</th>
+          <tr>
+            <th scope="col" style="padding:1.1rem 1.2rem">IP Address</th>
+            <th scope="col" style="padding:1.1rem 1.2rem">User</th>
+            <th scope="col" style="padding:1.1rem 1.2rem">Action</th>
+            <th scope="col" style="padding:1.1rem 1.2rem">Time (PST)</th>
           </tr>
         </thead>
-        <tbody>
-          {% for b in blocked %}
-          <tr style="border-bottom:1px solid var(--gray-100);{% if not b.is_currently_blocked() %}opacity:.5{% endif %}">
-            <td style="padding:.75rem 1rem;font-family:monospace"><span class="ip-chip">{{ b.ip_address }}</span></td>
-            <td style="padding:.75rem 1rem">
-              {% if b.block_type == 'brute_force' %}
-                <span style="background:#fff8e1;color:#7a4a00;border:1px solid #ffd580;padding:.2rem .6rem;border-radius:9999px;font-size:.8rem;font-weight:600">⏳ Brute Force (30 min)</span>
-              {% elif b.block_type == 'honeypot' %}
-                <span style="background:#fff0f7;color:#9c1261;border:1px solid #ffadd7;padding:.2rem .6rem;border-radius:9999px;font-size:.8rem;font-weight:600">🚫 Honeypot (24 h)</span>
-              {% else %}
-                <span style="background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:.2rem .6rem;border-radius:9999px;font-size:.8rem;font-weight:600">🔒 {{ b.block_type or 'admin' }}</span>
-              {% endif %}
-            </td>
-            <td style="padding:.75rem 1rem">{{ b.blocked_at.strftime('%Y-%m-%d %H:%M') }} PST</td>
-            <td style="padding:.75rem 1rem">
-              {% if b.expires_at %}{{ b.expires_at.strftime('%Y-%m-%d %H:%M') }} PST
-              {% else %}<span style="color:var(--danger)">Permanent</span>{% endif %}
-            </td>
-            <td style="padding:.75rem 1rem;max-width:300px;word-break:break-word">{{ b.reason or '—' }}</td>
-            <td style="padding:.75rem 1rem">
-              {% if b.is_currently_blocked() %}
-                <span style="color:var(--danger);font-weight:600">● Active</span>
-              {% else %}
-                <span class="text-muted">Expired</span>
-              {% endif %}
-            </td>
-            <td style="padding:.75rem 1rem">
-              {% if b.is_currently_blocked() %}
-              <form method="POST" action="{{ url_for('admin.unblock_ip_route', block_id=b.id) }}" style="display:inline">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-outline btn-sm"
-                  data-confirm="Unblock {{ b.ip_address }} now?" data-confirm-ok="Unblock">Unblock</button>
-              </form>
-              {% else %}
-                <span class="text-muted" style="font-size:.85rem">—</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
+        <tbody id="live-activity-feed">
+          <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">Loading…</td></tr>
         </tbody>
       </table>
     </div>
-    {% else %}
-    <p class="text-muted" style="font-size:.9rem">No IPs have been auto-banned yet.</p>
-    {% endif %}
-  </div>
-</div>
 
-<!-- ⑥ LAN Devices -->
-<div class="card" class="admin-section">
-  <div class="card-header" style="display:flex;align-items:center;gap:.75rem">
-    <h2 class="card-title" style="margin:0">🖧 LAN Devices</h2>
-    <small class="text-muted">Discovered by the local agent via nmap — updates every 60 s</small>
   </div>
-  <div class="card-body">
-    {% if network_devices %}
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:.88rem">
-        <thead>
-          <tr style="border-bottom:1px solid var(--gray-200)">
-            <th style="padding:.75rem 1rem;text-align:left">IP</th>
-            <th style="padding:.75rem 1rem;text-align:left">Hostname</th>
-            <th style="padding:.75rem 1rem;text-align:left">MAC / Vendor</th>
-            <th style="padding:.75rem 1rem;text-align:left">OS</th>
-            <th style="padding:.75rem 1rem;text-align:left">Open Ports</th>
-            <th style="padding:.75rem 1rem;text-align:left">Last Seen (PST)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for d in network_devices %}
-          <tr style="border-bottom:1px solid var(--gray-100)">
-            <td style="padding:.75rem 1rem;font-family:monospace"><span class="ip-chip">{{ d.ip }}</span></td>
-            <td style="padding:.75rem 1rem">{{ d.hostname or d.ip }}</td>
-            <td style="padding:.75rem 1rem">
-              <span style="font-family:monospace;font-size:.8rem">{{ d.mac or '—' }}</span>
-              {% if d.vendor and d.vendor != 'Unknown' %}<br><small class="text-muted">{{ d.vendor }}</small>{% endif %}
-            </td>
-            <td style="padding:.75rem 1rem">{{ d.os or '—' }}</td>
-            <td style="padding:.75rem 1rem;font-family:monospace;font-size:.8rem">
-              {% if d.open_ports %}{{ d.open_ports }}{% else %}<span class="text-muted">none</span>{% endif %}
-            </td>
-            <td style="padding:.75rem 1rem;white-space:nowrap">{{ d.last_seen.strftime('%Y-%m-%d %H:%M') }} PST</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+
+  <!-- Alerts panel -->
+  <div class="card" role="region" aria-label="Security alerts">
+    <div class="card-header">
+      <h2 class="card-title">Security Alerts</h2>
+      <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm">View all →</a>
     </div>
-    {% else %}
-    <p class="text-muted" style="font-size:.9rem">No devices discovered yet. Start the local agent to begin scanning.</p>
-    {% endif %}
+    <div style="overflow-x:hidden"><table style="width:100%;table-layout:fixed"><thead><tr>
+      <th scope="col" style="padding:.5rem 1.2rem">{% if alert_count > 0 %}<span class="badge badge-danger" id="alert-badge">{{ alert_count }} unresolved</span>{% else %}<span class="badge badge-success" id="alert-badge">All clear</span>{% endif %}</th>
+    </tr></thead></table></div>
+    <div class="card-body">
+      <div id="alert-feed">
+        <p class="text-muted" style="font-size:.9rem">Loading alerts…</p>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+{% else %}
+
+<!-- Full Live Stream for members -->
+<div class="card" style="max-width:1100px;margin:0 auto" role="region" aria-label="Live camera feed">
+  <div class="card-header">
+    <h2 class="card-title">Live Stream</h2>
+    <span class="badge badge-pink" id="stream-status">Connecting…</span>
+  </div>
+  <div class="card-body" style="padding:0">
+    <div class="camera-container" style="border:none;border-radius:0">
+      <img src="{{ url_for('camera.stream') }}"
+           class="camera-feed"
+           alt="Live camera feed"
+           id="camera-img"
+           style="width:100%;height:auto;display:block" />
+      <div class="camera-overlay" aria-hidden="true">
+        <div class="camera-corner camera-corner-tl"></div>
+        <div class="camera-corner camera-corner-tr"></div>
+        <div class="camera-corner camera-corner-bl"></div>
+        <div class="camera-corner camera-corner-br"></div>
+        <div class="camera-status-bar">
+          <div class="camera-live-dot">
+            <div class="live-indicator"></div>
+            <span id="camera-status-text">WAITING</span>
+          </div>
+          <span style="color:rgba(255,255,255,.7);font-size:.75rem;font-family:var(--font-mono)">
+            Broadcaster: {{ broadcaster_username if broadcaster_username is defined else 'admin' }}
+          </span>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+// ── XSS sanitizer ─────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+{% if current_user.role == 'member' %}
+// ── Full stream status polling for members ────────────────────────────────────
+let wasOffline = true;
+
+function pollStatus() {
+  fetch('{{ url_for("camera.status") }}')
+    .then(r => r.json())
+    .then(d => {
+      const streamStatus = document.getElementById('stream-status');
+      const statusText   = document.getElementById('camera-status-text');
+      if (d.online) {
+        if (streamStatus) { streamStatus.className='badge badge-success'; streamStatus.textContent='Live'; }
+        if (statusText)   statusText.textContent = 'LIVE';
+        if (wasOffline) {
+          let streamImg = document.getElementById('camera-img');
+          if (streamImg) {
+            streamImg.src = '{{ url_for("camera.stream") }}?' + Date.now();
+          }
+        }
+        wasOffline = false;
+      } else {
+        if (streamStatus) { streamStatus.className='badge badge-warning'; streamStatus.textContent='Waiting for broadcaster…'; }
+        if (statusText)   statusText.textContent = 'WAITING';
+        wasOffline = true;
+      }
+    }).catch(() => {});
+}
+pollStatus();
+setInterval(pollStatus, 2000);
+
+{% else %}
+// ── Camera preview for non-members (admins / staff) ──────────────────────────
+// FIX: img.onload does NOT reliably fire for MJPEG multipart streams —
+// the browser treats it as an endless response, so onload never triggers
+// and the preview stays black (opacity:0) even when frames are arriving.
+//
+// Solution:
+//   1. Attach the stream src immediately once the server reports online.
+//   2. Use a canvas-based frame detector: draw the img to canvas every second
+//      and check whether pixels have non-zero values — if they do, the stream
+//      is delivering frames → show the img and hide the offline overlay.
+//   3. Keep polling /camera/status to detect stream going offline, and
+//      reconnect (fresh src with cache-bust) when it comes back online.
+(function () {
+  const STREAM_URL = "{{ url_for('camera.stream') }}";
+  const STATUS_URL = "{{ url_for('camera.status') }}";
+  const img        = document.getElementById('dashboard-cam');
+  const offline    = document.getElementById('dashboard-cam-offline');
+  const statusText = document.getElementById('camera-status-text');
+
+  let isAttached   = false;
+  let isLive       = false;
+  let frameCheckId = null;
+  let canvas, ctx;
+
+  // Canvas used to sample pixels and detect actual frame delivery.
+  function initCanvas() {
+    if (canvas) return;
+    canvas = document.createElement('canvas');
+    canvas.width  = 8;   // tiny — we only need a liveness signal
+    canvas.height = 8;
+    ctx = canvas.getContext('2d', { willReadFrequently: true });
+  }
+
+  function hasVisiblePixels() {
+    if (!img || !ctx) return false;
+    try {
+      ctx.drawImage(img, 0, 0, 8, 8);
+      const d = ctx.getImageData(0, 0, 8, 8).data;
+      for (let i = 0; i < d.length; i += 4) {
+        // Any pixel that is not pure black means a real frame arrived.
+        if (d[i] > 10 || d[i+1] > 10 || d[i+2] > 10) return true;
+      }
+    } catch (e) { /* cross-origin or not-yet-loaded — treat as no pixels */ }
+    return false;
+  }
+
+  function showLive() {
+    if (isLive) return;
+    isLive = true;
+    if (img)     { img.style.opacity = '1'; }
+    if (offline) { offline.style.opacity = '0'; offline.style.pointerEvents = 'none'; }
+    if (statusText) statusText.textContent = 'LIVE';
+  }
+
+  function showOffline() {
+    isLive = false;
+    if (img)     { img.style.opacity = '0'; }
+    if (offline) { offline.style.opacity = '1'; offline.style.pointerEvents = ''; }
+    if (statusText) statusText.textContent = 'WAITING';
+  }
+
+  function startFrameCheck() {
+    if (frameCheckId) return;
+    initCanvas();
+    frameCheckId = setInterval(() => {
+      if (hasVisiblePixels()) {
+        showLive();
+      }
+      // If we've been attached for >4 s with no visible pixels, the stream
+      // might be stalled — let the status poll handle reconnection.
+    }, 800);
+  }
+
+  function stopFrameCheck() {
+    if (frameCheckId) { clearInterval(frameCheckId); frameCheckId = null; }
+  }
+
+  function attachStream() {
+    if (!img) return;
+    isAttached = true;
+    // Add cache-bust so the browser opens a fresh MJPEG connection.
+    img.src = STREAM_URL + '?' + Date.now();
+    startFrameCheck();
+  }
+
+  function detachStream() {
+    if (!img) return;
+    isAttached = false;
+    img.src    = '';
+    stopFrameCheck();
+    showOffline();
+  }
+
+  // Poll the status endpoint continuously.
+  // Unlike before, we don't stop polling after attaching — this lets us
+  // detect when the broadcaster goes offline and reconnect when they return.
+  function checkCameraStatus() {
+    fetch(STATUS_URL)
+      .then(r => r.json())
+      .then(data => {
+        if (data.online) {
+          if (!isAttached) attachStream();
+        } else {
+          // Stream went offline — tear down so we get a clean reconnect.
+          if (isAttached) detachStream();
+          if (statusText) statusText.textContent = 'WAITING';
+        }
+      })
+      .catch(() => {
+        if (statusText) statusText.textContent = 'WAITING';
+      });
+  }
+
+  checkCameraStatus();
+  setInterval(checkCameraStatus, 5000);
+})();
+
+// ── Load all-time stats ───────────────────────────────────────────────────────
+function loadStats() {
+  fetch('/api/access/stats')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('total-logins').textContent = data.total ?? '—';
+      document.getElementById('success-logins').textContent = data.success ?? '—';
+      document.getElementById('blocked-attempts').textContent = data.blocked ?? '—';
+    }).catch(() => {});
+}
+loadStats();
+
+// ── Load alert feed ───────────────────────────────────────────────────────────
+function loadAlerts() {
+  fetch('/api/alerts/unresolved')
+    .then(r => r.json())
+    .then(alerts => {
+      const container = document.getElementById('alert-feed');
+      if (!alerts.length) {
+        container.innerHTML = `<p style="color:var(--success);font-size:.9rem">✓ No unresolved alerts</p>`;
+        return;
+      }
+      container.innerHTML = alerts.slice(0, 4).map(a => `
+        <div class="alert-item" style="min-height:100px;align-items:center">
+          <div class="alert-item-icon" aria-hidden="true"></div>
+          <div class="alert-item-body">
+            <div class="alert-item-ip">${esc(a.ip)}</div>
+            <div class="alert-item-meta">${esc(a.endpoint)} · ${esc(a.timestamp)}</div>
+            ${a.threat_score ? `<div class="alert-item-meta" style="color:var(--danger);font-size:.75rem">Risk score: ${esc(a.threat_score)}/100 — ${esc(a.threat_reason)}</div>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }).catch(() => {});
+}
+loadAlerts();
+
+// ── Live activity feed ────────────────────────────────────────────────────────
+function loadActivityFeed() {
+  Promise.all([
+    fetch('/api/access/recent').then(r => r.json()).catch(() => []),
+    fetch('/api/activity/recent').then(r => r.json()).catch(() => []),
+  ]).then(([accessLogs, activityLogs]) => {
+    const rows = [];
+    accessLogs.forEach(log => {
+      rows.push({
+        ip: log.ip || '—',
+        user: log.username || '—',
+        action: log.status === 'success' ? 'Login' :
+                log.status === 'blocked' ? 'Blocked' :
+                log.status === 'logout'  ? 'Logout'  :
+                log.status === 'failed'  ? 'Failed login' : log.status,
+        badgeClass: log.status === 'blocked' ? 'badge-danger' : 'badge-pink',
+        time: log.timestamp || '',
+      });
+    });
+    activityLogs.forEach(log => {
+      rows.push({
+        ip: log.ip || '—',
+        user: log.username || '—',
+        action: log.action || log.description || log.endpoint || '—',
+        badgeClass: log.suspicious ? 'badge-danger' : 'badge-pink',
+        time: log.timestamp || '',
+      });
+    });
+    rows.sort((a, b) => {
+      const ta = a.time ? new Date(a.time.replace(' PST', '')) : 0;
+      const tb = b.time ? new Date(b.time.replace(' PST', '')) : 0;
+      return tb - ta;
+    });
+    const feed = document.getElementById('live-activity-feed');
+    if (!feed) return;
+    const newHTML = !rows.length
+      ? `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No activity yet</td></tr>`
+      : rows.slice(0, 4).map(row => `
+          <tr>
+            <td style="vertical-align:middle;font-family:monospace;font-size:.78rem">${esc(row.ip)}</td>
+            <td style="vertical-align:middle;font-family:monospace;font-size:.75rem;word-break:break-all">${esc(row.user)}</td>
+            <td style="vertical-align:middle"><span class="badge ${esc(row.badgeClass)}" style="font-size:.72rem;white-space:nowrap">${esc(row.action)}</span></td>
+            <td style="vertical-align:middle;color:var(--gray-500);font-size:.75rem;white-space:nowrap">${esc(row.time).replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
+          </tr>`).join('');
+    if (feed.innerHTML !== newHTML) feed.innerHTML = newHTML;
+  });
+}
+loadActivityFeed();
+setInterval(loadActivityFeed, 8000);
+setInterval(loadStats, 30000);
+setInterval(loadAlerts, 15000);
+{% endif %}
+</script>
 {% endblock %}
