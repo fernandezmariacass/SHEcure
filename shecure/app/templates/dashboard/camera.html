@@ -41,6 +41,8 @@
 <script nonce="{{ csp_nonce }}">
 // ── Stream status polling ─────────────────────────────────────────────────────
 let wasOffline = true;
+let offlineSince = null;           // timestamp of first offline poll
+const OFFLINE_DEBOUNCE_MS = 30000; // only flip to Waiting after 30s of no stream
 
 function pollStatus() {
   fetch('{{ url_for("camera.status") }}')
@@ -49,6 +51,7 @@ function pollStatus() {
       const streamStatus = document.getElementById('stream-status');
       const statusText   = document.getElementById('camera-status-text');
       if (d.online) {
+        offlineSince = null; // reset debounce timer
         if (streamStatus) { streamStatus.className='badge badge-success'; streamStatus.textContent='Live'; }
         if (statusText)   statusText.textContent = 'LIVE';
         if (wasOffline) {
@@ -64,9 +67,14 @@ function pollStatus() {
         }
         wasOffline = false;
       } else {
-        if (streamStatus) { streamStatus.className='badge badge-warning'; streamStatus.textContent='Waiting for broadcaster…'; }
-        if (statusText)   statusText.textContent = 'WAITING';
-        wasOffline = true;
+        // Start debounce timer on first offline poll
+        if (offlineSince === null) offlineSince = Date.now();
+        // Only switch to Waiting after 30s of consistently no stream
+        if (Date.now() - offlineSince >= OFFLINE_DEBOUNCE_MS) {
+          if (streamStatus) { streamStatus.className='badge badge-warning'; streamStatus.textContent='Waiting for broadcaster…'; }
+          if (statusText)   statusText.textContent = 'WAITING';
+          wasOffline = true;
+        }
       }
     }).catch(() => {});
 }
