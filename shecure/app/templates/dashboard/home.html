@@ -353,35 +353,29 @@ loadAlerts();
 // ── Live activity feed ────────────────────────────────────────────────────────
 function loadActivityFeed() {
   Promise.all([
-    fetch('/api/access/recent').then(r => r.json()).catch(() => []),
     fetch('/api/activity/recent').then(r => r.json()).catch(() => []),
-  ]).then(([accessLogs, activityLogs]) => {
+  ]).then(([activityLogs]) => {
     const rows = [];
-    accessLogs.forEach(log => {
-      rows.push({
-        ip: log.ip || '—',
-        user: log.username || '—',
-        action: log.status === 'success' ? 'Login' :
-                log.status === 'blocked' ? 'Blocked' :
-                log.status === 'logout'  ? 'Logout'  :
-                log.status === 'failed'  ? 'Failed login' : log.status,
-        badgeClass: log.status === 'blocked' ? 'badge-danger' : 'badge-pink',
-        time: log.timestamp || '',
-      });
-    });
-    activityLogs.forEach(log => {
+    // Activity log already contains "Logged in successfully", "Logged out", etc.
+    // We use only activityLogs here to avoid duplicate login rows that would appear
+    // if we also merged accessLogs (which record the same event under a different label).
+    activityLogs.forEach((log, i) => {
       rows.push({
         ip: log.ip || '—',
         user: log.username || '—',
         action: log.action || log.description || log.endpoint || '—',
         badgeClass: log.suspicious ? 'badge-danger' : 'badge-pink',
         time: log.timestamp || '',
+        _idx: i,  // preserve insertion order for same-second tiebreaking
       });
     });
+    // Stable sort: newer first; for equal timestamps keep original order (login
+    // is inserted before "Viewed Dashboard" so it stays above it in the feed).
     rows.sort((a, b) => {
       const ta = a.time ? new Date(a.time.replace(' PST', '')) : 0;
       const tb = b.time ? new Date(b.time.replace(' PST', '')) : 0;
-      return tb - ta;
+      if (tb - ta !== 0) return tb - ta;
+      return a._idx - b._idx;  // same timestamp → preserve insertion order
     });
     const feed = document.getElementById('live-activity-feed');
     if (!feed) return;
