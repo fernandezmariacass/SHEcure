@@ -358,13 +358,13 @@ def login():
             pass
 
         try:
-            log_access(username, "success", user_id=user.id)
+            log_access(username, "success", reason="Credentials verified — session started", user_id=user.id)
         except Exception:
             pass
 
         try:
             log_activity(
-                action="Logged in",
+                action="Logged in successfully",
                 description=f"Successful login from {ip}",
             )
         except Exception:
