@@ -29,14 +29,15 @@ SHEcure is a full-stack Python (Flask) web application that connects to a physic
 
 ## Screenshots
 
-> *Shecure Login Page*
-> *Admin Dashboard*
-> *Admin Camera Feed*
-> *Admin Activity Log*
-> *Admin Alerts*
-> *Admin Panel*
-> *Admin Access Logs*
-> *Member Dashboard*
+1. Shecure Login Page
+2. (Admin) Dashboard
+3. (Admin) Camera Feed
+4. (Admin) Activity Log
+5. (Admin) Alerts
+6. (Admin) Admin Panel
+7. (Admin) Access Logs
+8. (Member) Dashboard
+
 
 ---
 
