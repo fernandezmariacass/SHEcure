@@ -269,9 +269,14 @@ if (activityFeed) {
 const currentPath = window.location.pathname;
 document.querySelectorAll('.sidebar-nav-item').forEach(item => {
   const href = item.getAttribute('href');
-  if (href && currentPath.startsWith(href) && href !== '/') {
-    item.classList.add('active');
-  } else if (href === '/' && currentPath === '/') {
-    item.classList.add('active');
+  if (!href) return;
+  if (href === '/') {
+    if (currentPath === '/') item.classList.add('active');
+  } else {
+    // Match exact path or a sub-path (e.g. /admin/panel matches /admin/panel/...)
+    // but NOT /admin matching /admin/logs
+    if (currentPath === href || currentPath.startsWith(href + '/')) {
+      item.classList.add('active');
+    }
   }
 });
