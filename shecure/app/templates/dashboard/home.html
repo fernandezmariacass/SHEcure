@@ -12,15 +12,15 @@
     <h2 class="card-title">•ﻌ• Camera Preview</h2>
     <a href="{{ url_for('camera.feed_page') }}" class="btn btn-outline btn-sm">Full view →</a>
   </div>
-  <div class="card-body">
-    <div class="camera-container" style="max-height:320px">
+  <div class="card-body" style="padding:0">
+    <div class="camera-container" style="position:relative;width:100%;aspect-ratio:16/9;max-height:340px;overflow:hidden;border-radius:0 0 var(--radius) var(--radius)">
       <img src="" class="camera-feed"
         alt="Live camera feed" id="dashboard-cam"
-        style="opacity:0;transition:opacity 0.3s" />
+        style="opacity:0;transition:opacity 0.3s;width:100%;height:100%;object-fit:cover;display:block" />
       <div id="dashboard-cam-offline" style="
           position:absolute;inset:0;
           display:flex;align-items:center;justify-content:center;
-          min-height:180px;background:#111;border-radius:8px;
+          background:#111;
           color:rgba(255,255,255,.4);font-size:.9rem;gap:.5rem;
           transition:opacity 0.3s">
         <span aria-hidden="true">⏾</span> Waiting for broadcaster…
