@@ -1,406 +1,358 @@
-{% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard Overview{% endblock %}
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask_login import login_required, current_user
+from app import db, limiter
+from app.models.user import User, AllowedIP
+from app.models.logs import AccessLog, ActivityLog, UnauthorizedAlert, NetworkDevice, AdminAuditLog
+from app.utils.security import admin_required, _get_real_ip
+from app.utils.email_utils import send_2fa_reset_email
+from app.models.logs import now_pst
+import secrets
+from datetime import timedelta
 
-{% block content %}
-<div class="pink-line"></div>
+admin_bp = Blueprint("admin", __name__)
 
-{% if current_user.role != 'member' %}
-<!-- Camera preview (non-members) -->
-<div class="card mt-3" role="region" aria-label="Camera feed preview">
-  <div class="card-header">
-    <h2 class="card-title">📷 Camera Preview</h2>
-    <a href="{{ url_for('camera.feed_page') }}" class="btn btn-outline btn-sm">Full view →</a>
-  </div>
-  <div class="card-body">
-    <div class="camera-container" style="max-height:320px">
-      <img src="" class="camera-feed"
-        alt="Live camera feed" id="dashboard-cam"
-        style="opacity:0;transition:opacity 0.3s" />
-      <div id="dashboard-cam-offline" style="
-          position:absolute;inset:0;
-          display:flex;align-items:center;justify-content:center;
-          min-height:180px;background:#111;border-radius:8px;
-          color:rgba(255,255,255,.4);font-size:.9rem;gap:.5rem;
-          transition:opacity 0.3s">
-        <span aria-hidden="true">⏾</span> Waiting for broadcaster…
-      </div>
-      <div class="camera-overlay" aria-hidden="true">
-        <div class="camera-corner camera-corner-tl"></div>
-        <div class="camera-corner camera-corner-tr"></div>
-        <div class="camera-corner camera-corner-bl"></div>
-        <div class="camera-corner camera-corner-br"></div>
-        <div class="camera-status-bar">
-          <div class="camera-live-dot">
-            <div class="live-indicator"></div>
-            <span id="camera-status-text">CHECKING</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
-<!-- Stats -->
-<div class="stats-grid" role="region" aria-label="Security statistics">
-  <div class="stat-card">
-    <div class="stat-icon stat-icon-pink" aria-hidden="true">⋆☀︎｡</div>
-    <div>
-      <div class="stat-value" id="total-logins">—</div>
-      <div class="stat-label">Total Logins</div>
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon stat-icon-red" aria-hidden="true">👁</div>
-    <div>
-      <div class="stat-value" style="color:var(--danger)" id="open-alerts">{{ alert_count }}</div>
-      <div class="stat-label">Open Alerts</div>
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon stat-icon-green" aria-hidden="true">⚔</div>
-    <div>
-      <div class="stat-value" id="success-logins">—</div>
-      <div class="stat-label">Successful Logins</div>
-    </div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon stat-icon-amber" aria-hidden="true">⋆.𐙚 ̊</div>
-    <div>
-      <div class="stat-value" id="blocked-attempts">—</div>
-      <div class="stat-label">Blocked Attempts</div>
-    </div>
-  </div>
-</div>
+def _audit(action, target_user=None, detail=""):
+    """Write a tamper-evident AdminAuditLog entry for every destructive admin action."""
+    try:
+        entry = AdminAuditLog(
+            actor_id=current_user.id,
+            actor_username=current_user.username,
+            action=action,
+            target_id=target_user.id if target_user else None,
+            target_username=target_user.username if target_user else None,
+            ip_address=_get_real_ip(),
+            user_agent=request.user_agent.string[:512],
+            detail=detail[:500],
+        )
+        db.session.add(entry)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        import logging
+        logging.getLogger(__name__).error("[audit] failed to write audit log: %s", e)
 
-<!-- Main grid -->
-<div class="grid-2" style="align-items:start">
 
-  <!-- Recent Access -->
-  <div class="card" role="region" aria-label="Recent access log">
-    <div class="card-header">
-      <h2 class="card-title">Recent Activity</h2>
-      <a href="{{ url_for('dashboard.activity') }}" class="btn btn-outline btn-sm">View all →</a>
-    </div>
-    <div style="overflow-x:hidden">
-      <table aria-label="Recent activity table" class="logs-table" style="table-layout:fixed;width:100%">
-        <colgroup>
-          <col style="width:22%"><col style="width:30%"><col style="width:26%"><col style="width:22%">
-        </colgroup>
-        <thead>
-          <tr>
-            <th scope="col" style="padding:1.1rem 1.2rem">IP Address</th>
-            <th scope="col" style="padding:1.1rem 1.2rem">User</th>
-            <th scope="col" style="padding:1.1rem 1.2rem">Action</th>
-            <th scope="col" style="padding:1.1rem 1.2rem">Time (PST)</th>
-          </tr>
-        </thead>
-        <tbody id="live-activity-feed">
-          <tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">Loading…</td></tr>
-        </tbody>
-      </table>
-    </div>
+@admin_bp.route("/")
+@login_required
+@admin_required
+@limiter.limit("60 per minute")
+def panel():
+    from app.models.user import BlockedIP, ADMIN_LIMIT
+    from app.utils.security import is_ip_allowed, _get_real_ip
+    users = User.query.order_by(User.created_at.desc()).all()
+    ips = AllowedIP.query.order_by(AllowedIP.created_at.desc()).all()
+    pending = User.query.filter_by(is_approved=False).count()
+    alerts = UnauthorizedAlert.query.filter_by(resolved=False).count()
+    blocked = BlockedIP.query.order_by(BlockedIP.blocked_at.desc()).all()
+    admin_count = User.query.filter_by(role="admin").count()
+    ip_allowed = is_ip_allowed(_get_real_ip())
+    devices = NetworkDevice.query.order_by(NetworkDevice.last_seen.desc()).all()
+    return render_template("admin/panel.html", users=users, ips=ips,
+                           pending=pending, alerts=alerts, blocked_ips=blocked,
+                           admin_count=admin_count, admin_limit=ADMIN_LIMIT,
+                           ip_allowed=ip_allowed, network_devices=devices)
 
-  </div>
 
-  <!-- Alerts panel -->
-  <div class="card" role="region" aria-label="Security alerts">
-    <div class="card-header">
-      <h2 class="card-title">Security Alerts</h2>
-      <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm">View all →</a>
-    </div>
-    <div style="overflow-x:hidden"><table style="width:100%;table-layout:fixed"><thead><tr>
-      <th scope="col" style="padding:.5rem 1.2rem">{% if alert_count > 0 %}<span class="badge badge-danger" id="alert-badge">{{ alert_count }} unresolved</span>{% else %}<span class="badge badge-success" id="alert-badge">All clear</span>{% endif %}</th>
-    </tr></thead></table></div>
-    <div class="card-body">
-      <div id="alert-feed">
-        <p class="text-muted" style="font-size:.9rem">Loading alerts…</p>
-      </div>
+@admin_bp.route("/users/<int:user_id>/approve", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("30 per minute")
+def approve_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.role == "admin":
+        flash("Admin accounts cannot be approved through this panel.", "danger")
+        return redirect(url_for("admin.panel"))
+    user.is_approved = True
+    if not user.totp_enabled:
+        user.require_2fa_setup = True
+    db.session.commit()
+    _audit("approve_user", target_user=user, detail=f"Account approved; 2FA setup required: {not user.totp_enabled}")
+    flash(f"{user.username} approved.", "success")
+    return redirect(url_for("admin.panel"))
 
-    </div>
-  </div>
 
-</div>
+@admin_bp.route("/users/<int:user_id>/revoke", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("30 per minute")
+def revoke_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("You cannot revoke your own access.", "danger")
+        return redirect(url_for("admin.panel"))
+    if user.role == "admin":
+        flash("Admin access cannot be revoked directly. Remove admin role first.", "danger")
+        return redirect(url_for("admin.panel"))
+    user.is_approved = False
+    db.session.commit()
+    _audit("revoke_user", target_user=user, detail="Account access revoked")
+    flash(f"{user.username} access revoked.", "warning")
+    return redirect(url_for("admin.panel"))
 
-{% else %}
 
-<!-- Full Live Stream for members -->
-<div class="card" style="max-width:1100px;margin:0 auto" role="region" aria-label="Live camera feed">
-  <div class="card-header">
-    <h2 class="card-title">Live Stream</h2>
-    <span class="badge badge-pink" id="stream-status">Connecting…</span>
-  </div>
-  <div class="card-body" style="padding:0">
-    <div class="camera-container" style="border:none;border-radius:0">
-      <img src="{{ url_for('camera.stream') }}"
-           class="camera-feed"
-           alt="Live camera feed"
-           id="camera-img"
-           style="width:100%;height:auto;display:block" />
-      <div class="camera-overlay" aria-hidden="true">
-        <div class="camera-corner camera-corner-tl"></div>
-        <div class="camera-corner camera-corner-tr"></div>
-        <div class="camera-corner camera-corner-bl"></div>
-        <div class="camera-corner camera-corner-br"></div>
-        <div class="camera-status-bar">
-          <div class="camera-live-dot">
-            <div class="live-indicator"></div>
-            <span id="camera-status-text">WAITING</span>
-          </div>
-          <span style="color:rgba(255,255,255,.7);font-size:.75rem;font-family:var(--font-mono)">
-            Broadcaster: {{ broadcaster_username if broadcaster_username is defined else 'admin' }}
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+@admin_bp.route("/users/<int:user_id>/unlock", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("30 per minute")
+def unlock_user(user_id):
+    """Clear failed login logs for a user so they are no longer locked out."""
+    user = User.query.get_or_404(user_id)
+    AccessLog.query.filter(
+        AccessLog.username_attempted == user.username,
+        AccessLog.status == "failed",
+    ).delete()
+    db.session.commit()
+    _audit("unlock_user", target_user=user, detail="Failed login lockout cleared")
+    flash(f"{user.username}'s lockout cleared — they can now log in.", "success")
+    return redirect(url_for("admin.panel"))
 
-{% endif %}
-{% endblock %}
 
-{% block scripts %}
-<script nonce="{{ csp_nonce }}">
-// ── XSS sanitizer ─────────────────────────────────────────────────────────────
-function esc(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+@admin_bp.route("/users/<int:user_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("10 per minute")
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("You cannot delete your own account.", "danger")
+        return redirect(url_for("admin.panel"))
+    if user.role == "admin":
+        flash("Admin accounts cannot be deleted. Revoke admin role first.", "danger")
+        return redirect(url_for("admin.panel"))
+    try:
+        AllowedIP.query.filter_by(added_by=user.id).update({"added_by": None})
+        AccessLog.query.filter_by(user_id=user.id).delete()
+        ActivityLog.query.filter_by(user_id=user.id).delete()
+        _audit("delete_user", target_user=user, detail=f"User account permanently deleted (email: {user.email})")
+        db.session.delete(user)
+        db.session.commit()
+        flash("User deleted.", "danger")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Could not delete user: {e}", "danger")
+    return redirect(url_for("admin.panel"))
 
-{% if current_user.role == 'member' %}
-// ── Full stream status polling for members ────────────────────────────────────
-let wasOffline = true;
 
-function pollStatus() {
-  fetch('{{ url_for("camera.status") }}')
-    .then(r => r.json())
-    .then(d => {
-      const streamStatus = document.getElementById('stream-status');
-      const statusText   = document.getElementById('camera-status-text');
-      if (d.online) {
-        if (streamStatus) { streamStatus.className='badge badge-success'; streamStatus.textContent='Live'; }
-        if (statusText)   statusText.textContent = 'LIVE';
-        if (wasOffline) {
-          let streamImg = document.getElementById('camera-img');
-          if (streamImg) {
-            streamImg.src = '{{ url_for("camera.stream") }}?' + Date.now();
-          }
+@admin_bp.route("/users/<int:user_id>/reset-2fa", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("10 per minute")
+def reset_2fa(user_id):
+    """Admin-only: send the user a confirmation email with a link to reset their 2FA."""
+    from flask import request as _req
+    from flask_login import current_user as _cu
+    user = User.query.get_or_404(user_id)
+    token = secrets.token_urlsafe(32)
+    user.reset_2fa_token        = token
+    user.reset_2fa_token_expiry = now_pst() + timedelta(hours=24)
+    db.session.commit()
+    confirm_url = _req.host_url.rstrip("/") + f"/confirm-2fa-reset/{token}"
+    try:
+        send_2fa_reset_email(
+            user,
+            admin_username=_cu.username,
+            timestamp=now_pst().strftime("%Y-%m-%d %H:%M:%S"),
+            confirm_url=confirm_url,
+        )
+        _audit("reset_2fa", target_user=user, detail="2FA reset confirmation email sent")
+        flash(f"A confirmation email has been sent to {user.username}.", "info")
+    except Exception:
+        flash(f"Could not send email to {user.username}. Check mail settings.", "danger")
+    return redirect(url_for("admin.panel"))
+
+
+@admin_bp.route("/users/<int:user_id>/require-2fa", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("30 per minute")
+def require_2fa(user_id):
+    """Admin-only: mark a user as required to set up 2FA on next login."""
+    user = User.query.get_or_404(user_id)
+    user.require_2fa_setup = True
+    db.session.commit()
+    _audit("require_2fa", target_user=user, detail="Admin flagged user to set up 2FA on next login")
+    flash(f"{user.username} will be prompted to set up 2FA on their next login.", "info")
+    return redirect(url_for("admin.panel"))
+
+
+@admin_bp.route("/ip/add", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("30 per minute")
+def add_ip():
+    from flask_login import current_user
+    ip = request.form.get("ip_address", "").strip()
+    label = request.form.get("label", "").strip()
+    if not ip:
+        flash("IP address required.", "danger")
+        return redirect(url_for("admin.panel"))
+    if AllowedIP.query.filter_by(ip_address=ip).first():
+        flash("IP already in allow-list.", "warning")
+        return redirect(url_for("admin.panel"))
+    entry = AllowedIP(ip_address=ip, label=label, added_by=current_user.id)
+    db.session.add(entry)
+    db.session.commit()
+    _audit("add_ip", detail=f"IP {ip} added to allow-list (label: {label or 'none'})")
+    flash(f"IP {ip} added to allow-list.", "success")
+    return redirect(url_for("admin.panel"))
+
+
+@admin_bp.route("/ip/<int:ip_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("30 per minute")
+def delete_ip(ip_id):
+    entry = AllowedIP.query.get_or_404(ip_id)
+    _audit("delete_ip", detail=f"IP {entry.ip_address} removed from allow-list (label: {entry.label or 'none'})")
+    db.session.delete(entry)
+    db.session.commit()
+    flash("IP removed from allow-list.", "info")
+    return redirect(url_for("admin.panel"))
+
+
+@admin_bp.route("/alerts/<int:alert_id>/resolve", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("30 per minute")
+def resolve_alert(alert_id):
+    alert = UnauthorizedAlert.query.get_or_404(alert_id)
+    alert.resolved = True
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@admin_bp.route("/logs")
+@login_required
+@admin_required
+@limiter.limit("30 per minute")
+def logs():
+    access = AccessLog.query.order_by(AccessLog.timestamp.desc()).limit(500).all()
+    return render_template("admin/logs.html", logs=access)
+
+
+@admin_bp.route("/audit-log")
+@login_required
+@admin_required
+@limiter.limit("30 per minute")
+def audit_log():
+    from app.models.logs import AdminAuditLog
+    logs = AdminAuditLog.query.order_by(AdminAuditLog.timestamp.desc()).limit(500).all()
+    return render_template("admin/audit.html", logs=logs)
+
+
+@admin_bp.route("/test-email", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("5 per minute")
+def test_email():
+    from flask_login import current_user
+    from app.utils.email_utils import _send_email
+    _send_email(
+        current_user.email,
+        "SHEcure Test Email",
+        "<h2>It works!</h2><p>SMTP is configured correctly.</p>"
+    )
+    flash(f"Test email sent to {current_user.email} — check your inbox and Railway logs.", "info")
+    return redirect(url_for("admin.panel"))
+
+
+# ── Step 4: Log purge endpoint ────────────────────────────────────────────────
+
+@admin_bp.route("/purge-logs", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("5 per minute")
+def purge_logs():
+    """Delete log entries older than 90 days."""
+    from app.utils.db_cleanup import purge_old_logs
+    result = purge_old_logs(days=90)
+    total = result["access_logs_deleted"] + result["activity_logs_deleted"] + result["alerts_deleted"]
+    if total == 0:
+        flash(
+            f"No old logs to delete. All logs are within the last 90 days (cutoff: {result['cutoff_date']}).",
+            "info"
+        )
+    else:
+        flash(
+            f"Old logs purged successfully. "
+            f"Access logs: {result['access_logs_deleted']}, "
+            f"Activity logs: {result['activity_logs_deleted']}, "
+            f"Alerts: {result['alerts_deleted']}. "
+            f"Cutoff: {result['cutoff_date']}",
+            "success"
+        )
+    return redirect(url_for("admin.panel"))
+
+
+# ── Honeypot blocklist management ─────────────────────────────────────────────
+
+@admin_bp.route("/blocked-ips")
+@login_required
+@admin_required
+@limiter.limit("30 per minute")
+def blocked_ips():
+    from app.models.user import BlockedIP
+    blocks = BlockedIP.query.order_by(BlockedIP.blocked_at.desc()).all()
+    return jsonify([
+        {
+            "id": b.id,
+            "ip": b.ip_address,
+            "reason": b.reason,
+            "blocked_at": b.blocked_at.strftime("%Y-%m-%d %H:%M:%S") + " PST",
+            "expires_at": b.expires_at.strftime("%Y-%m-%d %H:%M:%S") + " PST" if b.expires_at else "permanent",
+            "active": b.is_currently_blocked(),
         }
-        wasOffline = false;
-      } else {
-        if (streamStatus) { streamStatus.className='badge badge-warning'; streamStatus.textContent='Waiting for broadcaster…'; }
-        if (statusText)   statusText.textContent = 'WAITING';
-        wasOffline = true;
-      }
-    }).catch(() => {});
-}
-pollStatus();
-setInterval(pollStatus, 2000);
+        for b in blocks
+    ])
 
-{% else %}
-// ── Camera preview for non-members (admins / staff) ──────────────────────────
-// FIX: img.onload does NOT reliably fire for MJPEG multipart streams —
-// the browser treats it as an endless response, so onload never triggers
-// and the preview stays black (opacity:0) even when frames are arriving.
-//
-// Solution:
-//   1. Attach the stream src immediately once the server reports online.
-//   2. Use a canvas-based frame detector: draw the img to canvas every second
-//      and check whether pixels have non-zero values — if they do, the stream
-//      is delivering frames → show the img and hide the offline overlay.
-//   3. Keep polling /camera/status to detect stream going offline, and
-//      reconnect (fresh src with cache-bust) when it comes back online.
-(function () {
-  const STREAM_URL = "{{ url_for('camera.stream') }}";
-  const STATUS_URL = "{{ url_for('camera.status') }}";
-  const img        = document.getElementById('dashboard-cam');
-  const offline    = document.getElementById('dashboard-cam-offline');
-  const statusText = document.getElementById('camera-status-text');
 
-  let isAttached   = false;
-  let isLive       = false;
-  let frameCheckId = null;
-  let canvas, ctx;
+@admin_bp.route("/blocked-ips/<int:block_id>/unblock", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("30 per minute")
+def unblock_ip_route(block_id):
+    from app.models.user import BlockedIP
+    entry = BlockedIP.query.get_or_404(block_id)
+    entry.is_active = False
+    db.session.commit()
+    _audit("unblock_ip", detail=f"IP {entry.ip_address} manually unblocked by admin")
+    flash(f"IP {entry.ip_address} has been unblocked.", "success")
+    return redirect(url_for("admin.panel"))
 
-  // Canvas used to sample pixels and detect actual frame delivery.
-  function initCanvas() {
-    if (canvas) return;
-    canvas = document.createElement('canvas');
-    canvas.width  = 8;   // tiny — we only need a liveness signal
-    canvas.height = 8;
-    ctx = canvas.getContext('2d', { willReadFrequently: true });
-  }
 
-  function hasVisiblePixels() {
-    if (!img || !ctx) return false;
-    try {
-      ctx.drawImage(img, 0, 0, 8, 8);
-      const d = ctx.getImageData(0, 0, 8, 8).data;
-      for (let i = 0; i < d.length; i += 4) {
-        // Any pixel that is not pure black means a real frame arrived.
-        if (d[i] > 10 || d[i+1] > 10 || d[i+2] > 10) return true;
-      }
-    } catch (e) { /* cross-origin or not-yet-loaded — treat as no pixels */ }
-    return false;
-  }
+@admin_bp.route("/blocked-ips/unblock-by-ip", methods=["POST"])
+@login_required
+@admin_required
+@limiter.limit("30 per minute")
+def unblock_by_ip_string():
+    """Unblock a specific IP by value (not DB row id)."""
+    from app.models.user import BlockedIP
+    from app.utils.security import _INMEMORY_BANNED_IPS
 
-  function showLive() {
-    if (isLive) return;
-    isLive = true;
-    if (img)     { img.style.opacity = '1'; }
-    if (offline) { offline.style.opacity = '0'; offline.style.pointerEvents = 'none'; }
-    if (statusText) statusText.textContent = 'LIVE';
-  }
+    ip = request.form.get("ip_address", "").strip()
+    if not ip:
+        flash("No IP address provided.", "danger")
+        return redirect(url_for("admin.panel"))
 
-  function showOffline() {
-    isLive = false;
-    if (img)     { img.style.opacity = '0'; }
-    if (offline) { offline.style.opacity = '1'; offline.style.pointerEvents = ''; }
-    if (statusText) statusText.textContent = 'WAITING';
-  }
+    entry = BlockedIP.query.filter_by(ip_address=ip).first()
+    if entry:
+        entry.is_active = False
+        db.session.commit()
+        _INMEMORY_BANNED_IPS.discard(ip)
+        _audit("unblock_ip", detail=f"IP {ip} unblocked by string lookup (DB + in-memory)")
+        flash(
+            f"✓ IP {ip} has been unblocked. "
+            f"DB record cleared and in-memory ban removed.",
+            "success",
+        )
+    else:
+        _INMEMORY_BANNED_IPS.discard(ip)
+        _audit("unblock_ip", detail=f"IP {ip} cleared from in-memory ban (no DB record found)")
+        flash(
+            f"IP {ip} was not found in the blocklist (may have expired or "
+            f"the ban was memory-only). In-memory entry cleared.",
+            "warning",
+        )
 
-  function startFrameCheck() {
-    if (frameCheckId) return;
-    initCanvas();
-    frameCheckId = setInterval(() => {
-      if (hasVisiblePixels()) {
-        showLive();
-      }
-      // If we've been attached for >4 s with no visible pixels, the stream
-      // might be stalled — let the status poll handle reconnection.
-    }, 800);
-  }
-
-  function stopFrameCheck() {
-    if (frameCheckId) { clearInterval(frameCheckId); frameCheckId = null; }
-  }
-
-  function attachStream() {
-    if (!img) return;
-    isAttached = true;
-    // Add cache-bust so the browser opens a fresh MJPEG connection.
-    img.src = STREAM_URL + '?' + Date.now();
-    startFrameCheck();
-  }
-
-  function detachStream() {
-    if (!img) return;
-    isAttached = false;
-    img.src    = '';
-    stopFrameCheck();
-    showOffline();
-  }
-
-  // Poll the status endpoint continuously.
-  // Unlike before, we don't stop polling after attaching — this lets us
-  // detect when the broadcaster goes offline and reconnect when they return.
-  function checkCameraStatus() {
-    fetch(STATUS_URL)
-      .then(r => r.json())
-      .then(data => {
-        if (data.online) {
-          if (!isAttached) attachStream();
-        } else {
-          // Stream went offline — tear down so we get a clean reconnect.
-          if (isAttached) detachStream();
-          if (statusText) statusText.textContent = 'WAITING';
-        }
-      })
-      .catch(() => {
-        if (statusText) statusText.textContent = 'WAITING';
-      });
-  }
-
-  checkCameraStatus();
-  setInterval(checkCameraStatus, 5000);
-})();
-
-// ── Load all-time stats ───────────────────────────────────────────────────────
-function loadStats() {
-  fetch('/api/access/stats')
-    .then(r => r.json())
-    .then(data => {
-      document.getElementById('total-logins').textContent = data.total ?? '—';
-      document.getElementById('success-logins').textContent = data.success ?? '—';
-      document.getElementById('blocked-attempts').textContent = data.blocked ?? '—';
-    }).catch(() => {});
-}
-loadStats();
-
-// ── Load alert feed ───────────────────────────────────────────────────────────
-function loadAlerts() {
-  fetch('/api/alerts/unresolved')
-    .then(r => r.json())
-    .then(alerts => {
-      const container = document.getElementById('alert-feed');
-      if (!alerts.length) {
-        container.innerHTML = `<p style="color:var(--success);font-size:.9rem">✓ No unresolved alerts</p>`;
-        return;
-      }
-      container.innerHTML = alerts.slice(0, 4).map(a => `
-        <div class="alert-item" style="min-height:100px;align-items:center">
-          <div class="alert-item-icon" aria-hidden="true"></div>
-          <div class="alert-item-body">
-            <div class="alert-item-ip">${esc(a.ip)}</div>
-            <div class="alert-item-meta">${esc(a.endpoint)} · ${esc(a.timestamp)}</div>
-            ${a.threat_score ? `<div class="alert-item-meta" style="color:var(--danger);font-size:.75rem">Risk score: ${esc(a.threat_score)}/100 — ${esc(a.threat_reason)}</div>` : ''}
-          </div>
-        </div>
-      `).join('');
-    }).catch(() => {});
-}
-loadAlerts();
-
-// ── Live activity feed ────────────────────────────────────────────────────────
-function loadActivityFeed() {
-  Promise.all([
-    fetch('/api/access/recent').then(r => r.json()).catch(() => []),
-    fetch('/api/activity/recent').then(r => r.json()).catch(() => []),
-  ]).then(([accessLogs, activityLogs]) => {
-    const rows = [];
-    accessLogs.forEach(log => {
-      rows.push({
-        ip: log.ip || '—',
-        user: log.username || '—',
-        action: log.status === 'success' ? 'Login' :
-                log.status === 'blocked' ? 'Blocked' :
-                log.status === 'logout'  ? 'Logout'  :
-                log.status === 'failed'  ? 'Failed login' : log.status,
-        badgeClass: log.status === 'blocked' ? 'badge-danger' : 'badge-pink',
-        time: log.timestamp || '',
-      });
-    });
-    activityLogs.forEach(log => {
-      rows.push({
-        ip: log.ip || '—',
-        user: log.username || '—',
-        action: log.action || log.description || log.endpoint || '—',
-        badgeClass: log.suspicious ? 'badge-danger' : 'badge-pink',
-        time: log.timestamp || '',
-      });
-    });
-    rows.sort((a, b) => {
-      const ta = a.time ? new Date(a.time.replace(' PST', '')) : 0;
-      const tb = b.time ? new Date(b.time.replace(' PST', '')) : 0;
-      return tb - ta;
-    });
-    const feed = document.getElementById('live-activity-feed');
-    if (!feed) return;
-    const newHTML = !rows.length
-      ? `<tr><td colspan="4" style="text-align:center;color:var(--gray-400);padding:2rem">No activity yet</td></tr>`
-      : rows.slice(0, 4).map(row => `
-          <tr>
-            <td style="vertical-align:middle;font-family:monospace;font-size:.78rem">${esc(row.ip)}</td>
-            <td style="vertical-align:middle;font-family:monospace;font-size:.75rem;word-break:break-all">${esc(row.user)}</td>
-            <td style="vertical-align:middle"><span class="badge ${esc(row.badgeClass)}" style="font-size:.72rem;white-space:nowrap">${esc(row.action)}</span></td>
-            <td style="vertical-align:middle;color:var(--gray-500);font-size:.75rem;white-space:nowrap">${esc(row.time).replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
-          </tr>`).join('');
-    if (feed.innerHTML !== newHTML) feed.innerHTML = newHTML;
-  });
-}
-loadActivityFeed();
-setInterval(loadActivityFeed, 8000);
-setInterval(loadStats, 30000);
-setInterval(loadAlerts, 15000);
-{% endif %}
-</script>
-{% endblock %}
+    return redirect(url_for("admin.panel"))
