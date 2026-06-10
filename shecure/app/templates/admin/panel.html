@@ -1,47 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard Overview{% endblock %}
+{% block title %}Admin Panel{% endblock %}
+{% block page_title %}Admin Panel{% endblock %}
 
 {% block content %}
 <div class="pink-line"></div>
 
-{% if current_user.role != 'member' %}
-<!-- Camera preview (non-members) -->
-<div class="card mt-3" role="region" aria-label="Camera feed preview">
-  <div class="card-header">
-    <h2 class="card-title">📷 Camera Preview</h2>
-    <a href="{{ url_for('camera.feed_page') }}" class="btn btn-outline btn-sm">Full view →</a>
-  </div>
-  <div class="card-body">
-    <div class="camera-container" style="max-height:320px">
-      <img src="" class="camera-feed"
-        alt="Live camera feed" id="dashboard-cam"
-        style="opacity:0;transition:opacity 0.3s" />
-      <div id="dashboard-cam-offline" style="
-          position:absolute;inset:0;
-          display:flex;align-items:center;justify-content:center;
-          min-height:180px;background:#111;border-radius:8px;
-          color:rgba(255,255,255,.4);font-size:.9rem;gap:.5rem;
-          transition:opacity 0.3s">
-        <span aria-hidden="true">⏾</span> Waiting for broadcaster…
-      </div>
-      <div class="camera-overlay" aria-hidden="true">
-        <div class="camera-corner camera-corner-tl"></div>
-        <div class="camera-corner camera-corner-tr"></div>
-        <div class="camera-corner camera-corner-bl"></div>
-        <div class="camera-corner camera-corner-br"></div>
-        <div class="camera-status-bar">
-          <div class="camera-live-dot">
-            <div class="live-indicator"></div>
-            <span id="camera-status-text">CHECKING</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Stats -->
+<!-- ── Stats ──────────────────────────────────────────────────────────── -->
 <div class="stats-grid" role="region" aria-label="Security statistics">
   <div class="stat-card">
     <div class="stat-icon stat-icon-pink" aria-hidden="true">⋆☀︎｡</div>
@@ -53,7 +17,7 @@
   <div class="stat-card">
     <div class="stat-icon stat-icon-red" aria-hidden="true">👁</div>
     <div>
-      <div class="stat-value" style="color:var(--danger)" id="open-alerts">{{ alert_count }}</div>
+      <div class="stat-value" style="color:var(--danger)" id="open-alerts">{{ alerts }}</div>
       <div class="stat-label">Open Alerts</div>
     </div>
   </div>
@@ -73,7 +37,7 @@
   </div>
 </div>
 
-<!-- Main grid -->
+<!-- ── Main grid ──────────────────────────────────────────────────────── -->
 <div class="grid-2" style="align-items:start">
 
   <!-- Recent Access -->
@@ -100,7 +64,6 @@
         </tbody>
       </table>
     </div>
-
   </div>
 
   <!-- Alerts panel -->
@@ -110,19 +73,18 @@
       <a href="{{ url_for('dashboard.alerts') }}" class="btn btn-outline btn-sm">View all →</a>
     </div>
     <div style="overflow-x:hidden"><table style="width:100%;table-layout:fixed"><thead><tr>
-      <th scope="col" style="padding:.5rem 1.2rem">{% if alert_count > 0 %}<span class="badge badge-danger" id="alert-badge">{{ alert_count }} unresolved</span>{% else %}<span class="badge badge-success" id="alert-badge">All clear</span>{% endif %}</th>
+      <th scope="col" style="padding:.5rem 1.2rem">{% if alerts > 0 %}<span class="badge badge-danger" id="alert-badge">{{ alerts }} unresolved</span>{% else %}<span class="badge badge-success" id="alert-badge">All clear</span>{% endif %}</th>
     </tr></thead></table></div>
     <div class="card-body">
       <div id="alert-feed">
         <p class="text-muted" style="font-size:.9rem">Loading alerts…</p>
       </div>
-
     </div>
   </div>
 
 </div>
 
-<!-- ── Members ──────────────────────────────────────────────────────── -->
+<!-- ── Members ──────────────────────────────────────────────────────────── -->
 <div class="card">
   <div class="card-header">
     <h2 class="card-title">Members</h2>
@@ -215,7 +177,7 @@
   </div>
 </div>
 
-<!-- ── Blocked IPs ──────────────────────────────────────────────────── -->
+<!-- ── Blocked IPs ──────────────────────────────────────────────────────── -->
 <div class="card">
   <div class="card-header">
     <h2 class="card-title">Blocked IPs</h2>
@@ -287,7 +249,7 @@
   </div>
 </div>
 
-<!-- ── Allowed IPs ──────────────────────────────────────────────────── -->
+<!-- ── Allowed IPs ──────────────────────────────────────────────────────── -->
 <div class="card">
   <div class="card-header">
     <h2 class="card-title">Allowed IPs</h2>
@@ -324,7 +286,7 @@
   </div>
 </div>
 
-<!-- ── Quick actions ────────────────────────────────────────────────── -->
+<!-- ── Quick Actions ────────────────────────────────────────────────────── -->
 <div class="card">
   <div class="card-header">
     <h2 class="card-title">Quick Actions</h2>
@@ -341,46 +303,11 @@
           data-confirm="Delete all logs older than 90 days?"
           data-confirm-ok="Purge">Purge old logs</button>
       </form>
-      <a href="{{ url_for('admin.audit_log') }}" class="btn btn-ghost btn-sm">View audit log</a>
+      <a href="{{ url_for('admin.logs') }}" class="btn btn-ghost btn-sm">View access logs</a>
     </div>
   </div>
 </div>
 
-{% else %}
-
-<!-- Full Live Stream for members -->
-<div class="card" style="max-width:1100px;margin:0 auto" role="region" aria-label="Live camera feed">
-  <div class="card-header">
-    <h2 class="card-title">Live Stream</h2>
-    <span class="badge badge-pink" id="stream-status">Connecting…</span>
-  </div>
-  <div class="card-body" style="padding:0">
-    <div class="camera-container" style="border:none;border-radius:0">
-      <img src="{{ url_for('camera.stream') }}"
-           class="camera-feed"
-           alt="Live camera feed"
-           id="camera-img"
-           style="width:100%;height:auto;display:block" />
-      <div class="camera-overlay" aria-hidden="true">
-        <div class="camera-corner camera-corner-tl"></div>
-        <div class="camera-corner camera-corner-tr"></div>
-        <div class="camera-corner camera-corner-bl"></div>
-        <div class="camera-corner camera-corner-br"></div>
-        <div class="camera-status-bar">
-          <div class="camera-live-dot">
-            <div class="live-indicator"></div>
-            <span id="camera-status-text">WAITING</span>
-          </div>
-          <span style="color:rgba(255,255,255,.7);font-size:.75rem;font-family:var(--font-mono)">
-            Broadcaster: {{ broadcaster_username if broadcaster_username is defined else 'admin' }}
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -389,154 +316,6 @@
 function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
-{% if current_user.role == 'member' %}
-// ── Full stream status polling for members ────────────────────────────────────
-let wasOffline = true;
-
-function pollStatus() {
-  fetch('{{ url_for("camera.status") }}')
-    .then(r => r.json())
-    .then(d => {
-      const streamStatus = document.getElementById('stream-status');
-      const statusText   = document.getElementById('camera-status-text');
-      if (d.online) {
-        if (streamStatus) { streamStatus.className='badge badge-success'; streamStatus.textContent='Live'; }
-        if (statusText)   statusText.textContent = 'LIVE';
-        if (wasOffline) {
-          let streamImg = document.getElementById('camera-img');
-          if (streamImg) {
-            streamImg.src = '{{ url_for("camera.stream") }}?' + Date.now();
-          }
-        }
-        wasOffline = false;
-      } else {
-        if (streamStatus) { streamStatus.className='badge badge-warning'; streamStatus.textContent='Waiting for broadcaster…'; }
-        if (statusText)   statusText.textContent = 'WAITING';
-        wasOffline = true;
-      }
-    }).catch(() => {});
-}
-pollStatus();
-setInterval(pollStatus, 2000);
-
-{% else %}
-// ── Camera preview for non-members (admins / staff) ──────────────────────────
-// FIX: img.onload does NOT reliably fire for MJPEG multipart streams —
-// the browser treats it as an endless response, so onload never triggers
-// and the preview stays black (opacity:0) even when frames are arriving.
-//
-// Solution:
-//   1. Attach the stream src immediately once the server reports online.
-//   2. Use a canvas-based frame detector: draw the img to canvas every second
-//      and check whether pixels have non-zero values — if they do, the stream
-//      is delivering frames → show the img and hide the offline overlay.
-//   3. Keep polling /camera/status to detect stream going offline, and
-//      reconnect (fresh src with cache-bust) when it comes back online.
-(function () {
-  const STREAM_URL = "{{ url_for('camera.stream') }}";
-  const STATUS_URL = "{{ url_for('camera.status') }}";
-  const img        = document.getElementById('dashboard-cam');
-  const offline    = document.getElementById('dashboard-cam-offline');
-  const statusText = document.getElementById('camera-status-text');
-
-  let isAttached   = false;
-  let isLive       = false;
-  let frameCheckId = null;
-  let canvas, ctx;
-
-  // Canvas used to sample pixels and detect actual frame delivery.
-  function initCanvas() {
-    if (canvas) return;
-    canvas = document.createElement('canvas');
-    canvas.width  = 8;   // tiny — we only need a liveness signal
-    canvas.height = 8;
-    ctx = canvas.getContext('2d', { willReadFrequently: true });
-  }
-
-  function hasVisiblePixels() {
-    if (!img || !ctx) return false;
-    try {
-      ctx.drawImage(img, 0, 0, 8, 8);
-      const d = ctx.getImageData(0, 0, 8, 8).data;
-      for (let i = 0; i < d.length; i += 4) {
-        // Any pixel that is not pure black means a real frame arrived.
-        if (d[i] > 10 || d[i+1] > 10 || d[i+2] > 10) return true;
-      }
-    } catch (e) { /* cross-origin or not-yet-loaded — treat as no pixels */ }
-    return false;
-  }
-
-  function showLive() {
-    if (isLive) return;
-    isLive = true;
-    if (img)     { img.style.opacity = '1'; }
-    if (offline) { offline.style.opacity = '0'; offline.style.pointerEvents = 'none'; }
-    if (statusText) statusText.textContent = 'LIVE';
-  }
-
-  function showOffline() {
-    isLive = false;
-    if (img)     { img.style.opacity = '0'; }
-    if (offline) { offline.style.opacity = '1'; offline.style.pointerEvents = ''; }
-    if (statusText) statusText.textContent = 'WAITING';
-  }
-
-  function startFrameCheck() {
-    if (frameCheckId) return;
-    initCanvas();
-    frameCheckId = setInterval(() => {
-      if (hasVisiblePixels()) {
-        showLive();
-      }
-      // If we've been attached for >4 s with no visible pixels, the stream
-      // might be stalled — let the status poll handle reconnection.
-    }, 800);
-  }
-
-  function stopFrameCheck() {
-    if (frameCheckId) { clearInterval(frameCheckId); frameCheckId = null; }
-  }
-
-  function attachStream() {
-    if (!img) return;
-    isAttached = true;
-    // Add cache-bust so the browser opens a fresh MJPEG connection.
-    img.src = STREAM_URL + '?' + Date.now();
-    startFrameCheck();
-  }
-
-  function detachStream() {
-    if (!img) return;
-    isAttached = false;
-    img.src    = '';
-    stopFrameCheck();
-    showOffline();
-  }
-
-  // Poll the status endpoint continuously.
-  // Unlike before, we don't stop polling after attaching — this lets us
-  // detect when the broadcaster goes offline and reconnect when they return.
-  function checkCameraStatus() {
-    fetch(STATUS_URL)
-      .then(r => r.json())
-      .then(data => {
-        if (data.online) {
-          if (!isAttached) attachStream();
-        } else {
-          // Stream went offline — tear down so we get a clean reconnect.
-          if (isAttached) detachStream();
-          if (statusText) statusText.textContent = 'WAITING';
-        }
-      })
-      .catch(() => {
-        if (statusText) statusText.textContent = 'WAITING';
-      });
-  }
-
-  checkCameraStatus();
-  setInterval(checkCameraStatus, 5000);
-})();
 
 // ── Load all-time stats ───────────────────────────────────────────────────────
 function loadStats() {
@@ -625,6 +404,5 @@ loadActivityFeed();
 setInterval(loadActivityFeed, 8000);
 setInterval(loadStats, 30000);
 setInterval(loadAlerts, 15000);
-{% endif %}
 </script>
 {% endblock %}
