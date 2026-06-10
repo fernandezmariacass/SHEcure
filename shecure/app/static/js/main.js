@@ -225,9 +225,8 @@ if (activityFeed) {
           user: log.username || '—',
           action: log.status === 'success' ? 'Login' :
                   log.status === 'blocked' ? 'Blocked' :
-                  log.status === 'logout'  ? 'Logout' : '⚠️ ' + log.status,
-          statusClass: log.status === 'success' ? 'badge-success' :
-                       log.status === 'blocked' ? 'badge-danger' : 'badge-warning',
+                  log.status === 'logout'  ? 'Logout' : log.status,
+          statusClass: log.status === 'blocked' ? 'badge-danger' : 'badge-pink',
           time: log.timestamp,
         });
       });
@@ -239,7 +238,7 @@ if (activityFeed) {
           ip: log.ip || '—',
           user: log.username || '—',
           action: log.action || log.description || log.endpoint || '—',
-          statusClass: log.suspicious ? 'badge-danger' : 'badge-info',
+          statusClass: log.suspicious ? 'badge-danger' : 'badge-pink',
           time: log.timestamp,
         });
       });
