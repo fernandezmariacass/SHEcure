@@ -34,7 +34,7 @@
   --success:  #10b981;
   --warning:  #f59e0b;
   --danger:   #ef4444;
-  --info:     #3b82f6;
+  --info:     var(--pink-500);
 
   /* Shadows */
   --shadow-sm: 0 1px 3px rgba(233,30,140,.08), 0 1px 2px rgba(0,0,0,.06);
@@ -304,7 +304,7 @@ img { max-width: 100%; display: block; }
 .alert-success { background: #ecfdf5; border-color: var(--success); color: #065f46; }
 .alert-danger   { background: #fef2f2; border-color: var(--danger);  color: #991b1b; }
 .alert-warning  { background: #fffbeb; border-color: var(--warning); color: #92400e; }
-.alert-info     { background: #eff6ff; border-color: var(--info);    color: #1e40af; }
+.alert-info     { background: var(--pink-50); border-color: var(--pink-400); color: var(--pink-700); }
 
 /* ══════════════════════════════════════════════
    LAYOUT — SIDEBAR + TOPBAR
@@ -599,7 +599,7 @@ img { max-width: 100%; display: block; }
 .stat-icon-green  { background: #ecfdf5;          color: var(--success); }
 .stat-icon-red    { background: #fef2f2;          color: var(--danger); }
 .stat-icon-amber  { background: #fffbeb;          color: var(--warning); }
-.stat-icon-blue   { background: #eff6ff;          color: var(--info); }
+.stat-icon-blue   { background: var(--pink-50);   color: var(--pink-500); }
 
 .stat-value {
   font-family: var(--font-display);
@@ -662,12 +662,13 @@ tbody tr:hover td { background: var(--pink-50); }
   font-weight: 700;
   letter-spacing: .04em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .badge-success { background: #d1fae5; color: #065f46; }
 .badge-danger  { background: #fee2e2; color: #991b1b; }
 .badge-warning { background: #fef3c7; color: #92400e; }
-.badge-info    { background: #dbeafe; color: #1e40af; }
+.badge-info    { background: var(--pink-100); color: var(--pink-700); }
 .badge-pink    { background: var(--pink-100); color: var(--pink-700); }
 .badge-gray    { background: var(--gray-100); color: var(--gray-600); }
 
@@ -1129,3 +1130,14 @@ input[type="checkbox"] {
 
 /* Dashboard activity row — all rows same height */
 .logs-table tbody tr td { vertical-align: middle; }
+
+/* ── Flash message enter/exit animation ─────────────────────────────── */
+@keyframes alertSlideIn {
+  from { opacity: 0; transform: translateY(-8px); max-height: 0; margin-bottom: 0; padding-top: 0; padding-bottom: 0; }
+  to   { opacity: 1; transform: translateY(0);    max-height: 120px; margin-bottom: 1rem; }
+}
+
+.alert[data-auto-dismiss] {
+  overflow: hidden;
+  transition: opacity 0.3s ease, max-height 0.35s ease, margin-bottom 0.35s ease, padding 0.35s ease;
+}
