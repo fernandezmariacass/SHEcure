@@ -365,8 +365,7 @@ function loadActivityFeed() {
                 log.status === 'blocked' ? 'Blocked' :
                 log.status === 'logout'  ? 'Logout'  :
                 log.status === 'failed'  ? 'Failed login' : log.status,
-        badgeClass: log.status === 'success' ? 'badge-success' :
-                    log.status === 'blocked' ? 'badge-danger' : 'badge-warning',
+        badgeClass: log.status === 'blocked' ? 'badge-danger' : 'badge-pink',
         time: log.timestamp || '',
       });
     });
