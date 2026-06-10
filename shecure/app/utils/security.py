@@ -17,11 +17,12 @@ _SKIP_LOGGING_PREFIXES = (
     "/camera/stream",
     "/camera/status",
     "/logout",   # logout is logged explicitly in the route with the correct username
+    "/login",    # login is logged explicitly in auth.py with precise success/failure actions
 )
 
 # ── Action label map ──────────────────────────────────────────────────────────
 _ACTION_MAP = [
-    ("POST", r"^/login$",                      "Login attempt"),
+    ("POST", r"^/login$",                      "Login attempt (failed)"),
     ("POST", r"^/register$",                   "Registration"),
     ("GET",  r"^/logout$",                     "Logged out"),
     ("GET",  r"^/dashboard$",                  "Viewed Dashboard"),
