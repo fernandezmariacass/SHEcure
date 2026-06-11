@@ -1,3 +1,5 @@
+from gevent import monkey; monkey.patch_all()
+
 import logging
 import os
 
@@ -11,5 +13,5 @@ from app import create_app
 
 app = create_app()
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     app.run(debug=False, host="0.0.0.0", port=5000)
