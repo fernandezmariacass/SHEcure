@@ -95,43 +95,4 @@
   </div>
 </div>
 
-<!-- ── Allowed IPs ──────────────────────────────────────────────────────── -->
-<div class="card">
-  <div class="card-header">
-    <h2 class="card-title">Allowed IPs</h2>
-  </div>
-  <div class="card-body">
-    <div class="unblock-form">
-      <form method="POST" action="{{ url_for('admin.add_ip') }}" class="ip-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="text" name="ip_address" placeholder="IP address" class="form-control" style="max-width:200px">
-        <input type="text" name="label" placeholder="Label (optional)" class="form-control" style="max-width:200px">
-        <button type="submit" class="btn btn-primary btn-sm">Add IP</button>
-      </form>
-    </div>
-    {% if ips %}
-    <div style="display:flex;flex-wrap:wrap;gap:.75rem;margin-top:.5rem">
-      {% for entry in ips %}
-      <div class="ip-row">
-        <div class="ip-row-left">
-          <span class="ip-chip">{{ entry.ip_address }}</span>
-          {% if entry.label %}<span style="font-size:.82rem;color:var(--gray-500)">{{ entry.label }}</span>{% endif %}
-        </div>
-        <form method="POST" action="{{ url_for('admin.delete_ip', ip_id=entry.id) }}" style="margin-left:.5rem">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn btn-ghost btn-sm"
-            data-confirm="Remove {{ entry.ip_address }} from allow-list?"
-            data-confirm-ok="Remove">Remove</button>
-        </form>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p style="color:var(--gray-400);font-size:.88rem">No allowed IPs configured.</p>
-    {% endif %}
-  </div>
-</div>
-
-
-
 {% endblock %}
