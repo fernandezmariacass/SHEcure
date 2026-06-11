@@ -37,6 +37,8 @@ SHEcure is a full-stack Python (Flask) web application that connects to a physic
 6. (Admin) Admin Panel
 7. (Admin) Access Logs
 8. (Member) Dashboard
+
+   ![Member Dashboard](screenshots/member/member-dashboard.png)
    
 
 
