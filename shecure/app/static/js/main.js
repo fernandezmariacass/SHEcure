@@ -269,13 +269,8 @@ const currentPath = window.location.pathname;
 document.querySelectorAll('.sidebar-nav-item').forEach(item => {
   const href = item.getAttribute('href');
   if (!href) return;
-  if (href === '/') {
-    if (currentPath === '/') item.classList.add('active');
-  } else {
-    // Match exact path or a sub-path (e.g. /admin/panel matches /admin/panel/...)
-    // but NOT /admin matching /admin/logs
-    if (currentPath === href || currentPath.startsWith(href + '/')) {
-      item.classList.add('active');
-    }
+  if (currentPath === href) {
+    // Exact match always wins
+    item.classList.add('active');
   }
 });
