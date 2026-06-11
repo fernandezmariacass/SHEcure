@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 {% block title %}Security Alerts{% endblock %}
 {% block page_title %}⟡ Security Alerts{% endblock %}
@@ -22,25 +21,6 @@
   "unauthorized_access": "⛔"
 } %}
 
-{# ── Filter bar ───────────────────────────────────────────────────────── #}
-<div class="card" style="margin-bottom:1rem">
-  <div class="card-body" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
-    <span style="font-size:.85rem;color:var(--text-muted);margin-right:.25rem">Filter:</span>
-    <button class="btn btn-ghost btn-sm filter-btn active" data-filter="all">All</button>
-    <button class="btn btn-ghost btn-sm filter-btn" data-filter="honeypot">Honeypot</button>
-    <button class="btn btn-ghost btn-sm filter-btn" data-filter="suspicious_push">Frame Push</button>
-    <button class="btn btn-ghost btn-sm filter-btn" data-filter="suspicious_movement">Movement</button>
-    <button class="btn btn-ghost btn-sm filter-btn" data-filter="invalid_credentials">Credentials</button>
-    <button class="btn btn-ghost btn-sm filter-btn" data-filter="unauthorized_access">Unauthorized</button>
-    <span style="margin-left:auto;font-size:.8rem;color:var(--text-muted)">
-      {% set unresolved = alerts|selectattr('resolved','equalto',false)|list %}
-      <span class="badge {% if unresolved %}badge-danger{% else %}badge-success{% endif %}">
-        {{ unresolved|length }} unresolved
-      </span>
-      of {{ alerts|length }} total
-    </span>
-  </div>
-</div>
 
 <div class="card">
   <div class="card-header">
@@ -145,17 +125,5 @@
   </div>
 </div>
 
-<script>
-// ── Client-side type filter ──────────────────────────────────────────────────
-document.querySelectorAll('.filter-btn').forEach(btn => {
-  btn.addEventListener('click', function () {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    this.classList.add('active');
-    const filter = this.dataset.filter;
-    document.querySelectorAll('#alerts-list .alert-item').forEach(row => {
-      row.style.display = (filter === 'all' || row.dataset.type === filter) ? '' : 'none';
-    });
-  });
-});
-</script>
+
 {% endblock %}
