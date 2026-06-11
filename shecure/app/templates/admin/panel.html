@@ -95,78 +95,6 @@
   </div>
 </div>
 
-<!-- ── Blocked IPs ──────────────────────────────────────────────────────── -->
-<div class="card">
-  <div class="card-header">
-    <h2 class="card-title">Blocked IPs</h2>
-    <span class="badge badge-gray">{{ blocked_ips|length }} entries</span>
-  </div>
-  <div class="card-body">
-
-    <!-- Unblock by IP string -->
-    <div class="unblock-form">
-      <p style="font-size:.85rem;color:var(--gray-500);margin-bottom:.75rem">Manually unblock an IP address:</p>
-      <form method="POST" action="{{ url_for('admin.unblock_by_ip_string') }}" style="display:flex;gap:.75rem;flex-wrap:wrap">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="text" name="ip_address" placeholder="e.g. 192.168.1.10" class="form-control" style="max-width:260px">
-        <button type="submit" class="btn btn-outline btn-sm"
-          data-confirm="Unblock this IP address?"
-          data-confirm-ok="Unblock">Unblock IP</button>
-      </form>
-    </div>
-
-    {% if blocked_ips %}
-    <div style="overflow-x:auto;width:100%;margin-top:1rem">
-      <table style="width:100%;border-collapse:collapse;table-layout:auto">
-        <thead>
-          <tr>
-            <th style="padding:.75rem 1rem;text-align:left;white-space:nowrap">IP Address</th>
-            <th style="padding:.75rem 1rem;text-align:left;white-space:nowrap">Reason</th>
-            <th style="padding:.75rem 1rem;text-align:left;white-space:nowrap">Blocked At</th>
-            <th style="padding:.75rem 1rem;text-align:left;white-space:nowrap">Expires</th>
-            <th style="padding:.75rem 1rem;text-align:left;white-space:nowrap">Status</th>
-            <th style="padding:.75rem 1rem;text-align:left;white-space:nowrap">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for b in blocked_ips %}
-          <tr style="vertical-align:middle;border-top:1px solid var(--gray-100)">
-            <td style="padding:.75rem 1rem"><span class="ip-chip">{{ b.ip_address }}</span></td>
-            <td style="padding:.75rem 1rem;font-size:.82rem;color:var(--gray-600);max-width:220px;word-break:break-word">{{ b.reason or '—' }}</td>
-            <td style="padding:.75rem 1rem;font-size:.8rem;color:var(--gray-400);white-space:nowrap">{{ b.blocked_at.strftime('%Y-%m-%d %H:%M') }} PST</td>
-            <td style="padding:.75rem 1rem;font-size:.8rem;color:var(--gray-400);white-space:nowrap">
-              {% if b.expires_at %}{{ b.expires_at.strftime('%Y-%m-%d %H:%M') }} PST{% else %}Permanent{% endif %}
-            </td>
-            <td style="padding:.75rem 1rem">
-              {% if b.is_currently_blocked() %}
-                <span class="badge badge-danger">Active</span>
-              {% else %}
-                <span class="badge badge-gray">Expired</span>
-              {% endif %}
-            </td>
-            <td style="padding:.75rem 1rem">
-              {% if b.is_currently_blocked() %}
-              <form method="POST" action="{{ url_for('admin.unblock_ip_route', block_id=b.id) }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button type="submit" class="btn btn-outline btn-sm"
-                  data-confirm="Unblock {{ b.ip_address }}?"
-                  data-confirm-ok="Unblock">Unblock</button>
-              </form>
-              {% else %}
-              <span style="font-size:.8rem;color:var(--gray-400)">—</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p style="color:var(--success);font-size:.9rem;margin-top:.75rem">No blocked IPs.</p>
-    {% endif %}
-  </div>
-</div>
-
 <!-- ── Allowed IPs ──────────────────────────────────────────────────────── -->
 <div class="card">
   <div class="card-header">
@@ -204,26 +132,6 @@
   </div>
 </div>
 
-<!-- ── Quick Actions ────────────────────────────────────────────────────── -->
-<div class="card">
-  <div class="card-header">
-    <h2 class="card-title">Quick Actions</h2>
-  </div>
-  <div class="card-body">
-    <div style="display:flex;gap:.75rem;flex-wrap:wrap">
-      <form method="POST" action="{{ url_for('admin.test_email') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-outline btn-sm">Send test email</button>
-      </form>
-      <form method="POST" action="{{ url_for('admin.purge_logs') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="btn btn-ghost btn-sm"
-          data-confirm="Delete all logs older than 90 days?"
-          data-confirm-ok="Purge">Purge old logs</button>
-      </form>
-      <a href="{{ url_for('admin.logs') }}" class="btn btn-ghost btn-sm">View access logs</a>
-    </div>
-  </div>
-</div>
+
 
 {% endblock %}
