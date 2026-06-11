@@ -279,6 +279,11 @@ setInterval(pollStatus, 2000);
   function attachStream() {
     if (!img) return;
     isAttached = true;
+    // The MJPEG stream fires 'load' for each frame received — use the very
+    // first one as an immediate, reliable "we're live" signal, independent
+    // of pixel-brightness sampling (which can stay dark on near-black frames).
+    img.onload = () => { showLive(); };
+    img.onerror = null;
     // Add cache-bust so the browser opens a fresh MJPEG connection.
     img.src = STREAM_URL + '?' + Date.now();
     startFrameCheck();
@@ -287,6 +292,7 @@ setInterval(pollStatus, 2000);
   function detachStream() {
     if (!img) return;
     isAttached = false;
+    img.onload = null;
     img.src    = '';
     stopFrameCheck();
     showOffline();
