@@ -208,62 +208,7 @@ document.querySelectorAll('tr[data-suspicious="true"]').forEach(row => {
 });
 
 // ── Real-time activity feed (dashboard) ──────
-// Shows BOTH access logs and activity logs merged and sorted by time
-const activityFeed = document.getElementById('live-activity-feed');
-if (activityFeed) {
-  function refreshActivity() {
-    Promise.all([
-      fetch('/api/access/recent').then(r => r.json()).catch(() => []),
-      fetch('/api/activity/recent').then(r => r.json()).catch(() => []),
-    ]).then(([accessLogs, activityLogs]) => {
-      // Merge: access logs get IP+user+status, activity logs get action
-      const rows = [];
-
-      accessLogs.forEach(log => {
-        rows.push({
-          ip: log.ip || '—',
-          user: log.username || '—',
-          action: log.status === 'success' ? 'Login' :
-                  log.status === 'blocked' ? 'Blocked' :
-                  log.status === 'logout'  ? 'Logout' : log.status,
-          statusClass: log.status === 'blocked' ? 'badge-danger' : 'badge-pink',
-          time: log.timestamp,
-        });
-      });
-
-      activityLogs.forEach(log => {
-        // Skip static/api noise unless suspicious
-        if (log.endpoint && log.endpoint.startsWith('/static')) return;
-        rows.push({
-          ip: log.ip || '—',
-          user: log.username || '—',
-          action: log.action || log.description || log.endpoint || '—',
-          statusClass: log.suspicious ? 'badge-danger' : 'badge-pink',
-          time: log.timestamp,
-        });
-      });
-
-      // Sort newest first, take top 10
-      rows.sort((a, b) => {
-        const ta = a.time ? new Date(a.time.replace(' PST','')) : 0;
-        const tb = b.time ? new Date(b.time.replace(' PST','')) : 0;
-        return tb - ta;
-      });
-
-      activityFeed.innerHTML = rows.slice(0, 10).map(row => `
-        <tr>
-          <td><span class="text-mono" style="font-size:.78rem">${row.ip}</span></td>
-          <td style="font-size:.85rem">${row.user}</td>
-          <td><span class="badge ${row.statusClass}" style="font-size:.72rem">${row.action}</span></td>
-          <td class="text-muted" style="font-size:.75rem">${toPSTTime(row.time)}</td>
-        </tr>`).join('');
-    });
-  }
-
-  refreshActivity();
-  setInterval(refreshActivity, 8000);
-}
-
+// Handled by inline loadActivityFeed() in dashboard/home.html
 // ── Sidebar active state ─────────────────────
 const currentPath = window.location.pathname;
 document.querySelectorAll('.sidebar-nav-item').forEach(item => {
