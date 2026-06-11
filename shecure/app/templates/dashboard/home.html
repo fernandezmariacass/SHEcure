@@ -85,7 +85,7 @@
     <div style="overflow-x:hidden">
       <table aria-label="Recent activity table" class="logs-table" style="table-layout:fixed;width:100%">
         <colgroup>
-          <col style="width:22%"><col style="width:30%"><col style="width:26%"><col style="width:22%">
+          <col style="width:20%"><col style="width:22%"><col style="width:34%"><col style="width:24%">
         </colgroup>
         <thead>
           <tr>
@@ -401,8 +401,8 @@ function loadActivityFeed() {
           <tr>
             <td style="vertical-align:middle;font-family:monospace;font-size:.78rem">${esc(row.ip)}</td>
             <td style="vertical-align:middle;font-family:monospace;font-size:.75rem;word-break:break-all">${esc(row.user)}</td>
-            <td style="vertical-align:middle"><span class="badge ${esc(row.badgeClass)}" style="font-size:.72rem;white-space:nowrap">${esc(row.action)}</span></td>
-            <td style="vertical-align:middle;color:var(--gray-500);font-size:.75rem;white-space:nowrap">${esc(row.time).replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
+            <td style="vertical-align:middle"><span class="badge ${esc(row.badgeClass)}" style="font-size:.7rem;white-space:normal;word-break:break-word;display:inline-block;max-width:100%">${esc(row.action)}</span></td>
+            <td style="vertical-align:middle;color:var(--gray-500);font-size:.73rem;word-break:break-word">${esc(row.time).replace(/^\d{4}-\d{2}-\d{2} /, '')}</td>
           </tr>`).join('');
     if (feed.innerHTML !== newHTML) feed.innerHTML = newHTML;
   });
