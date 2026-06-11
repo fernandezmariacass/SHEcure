@@ -588,7 +588,6 @@ def register_security_middleware(app):
                                    request.method, request.user_agent.string,
                                    cached_body="")
             log_access("unknown", "blocked", reason="IP not in allow-list")
-            time.sleep(15)
             abort(403)
 
         if request.content_length and request.content_length > 10 * 1024 * 1024:
@@ -614,7 +613,6 @@ def register_security_middleware(app):
                                            cached_body=raw_body)
                 except Exception:
                     pass
-                time.sleep(20)
                 abort(400)
 
         ua = request.user_agent.string.strip()
