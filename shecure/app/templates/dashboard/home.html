@@ -220,6 +220,8 @@ setInterval(pollStatus, 2000);
   let isLive       = false;
   let frameCheckId = null;
   let canvas, ctx;
+  let offlineSince = null;           // when we first saw an offline response
+  const OFFLINE_DEBOUNCE_MS = 12000; // tear stream only after 12 s of confirmed offline
 
   // Canvas used to sample pixels and detect actual frame delivery.
   function initCanvas() {
@@ -298,15 +300,23 @@ setInterval(pollStatus, 2000);
       .then(r => r.json())
       .then(data => {
         if (data.online) {
+          offlineSince = null; // reset debounce — stream is confirmed live
           if (!isAttached) attachStream();
         } else {
-          // Stream went offline — tear down so we get a clean reconnect.
-          if (isAttached) detachStream();
-          if (statusText) statusText.textContent = 'WAITING';
+          // Don't tear the stream on the first offline poll — a single slow
+          // response or momentary blip will always look offline here but the
+          // MJPEG connection may still be delivering frames fine.
+          // Only detach after OFFLINE_DEBOUNCE_MS of consistently offline responses.
+          if (offlineSince === null) offlineSince = Date.now();
+          if (Date.now() - offlineSince >= OFFLINE_DEBOUNCE_MS) {
+            if (isAttached) detachStream();
+            if (statusText) statusText.textContent = 'WAITING';
+          }
         }
       })
       .catch(() => {
-        if (statusText) statusText.textContent = 'WAITING';
+        // Network error on the poll itself — don't touch the stream.
+        if (statusText && !isLive) statusText.textContent = 'WAITING';
       });
   }
 
@@ -353,29 +363,35 @@ loadAlerts();
 // ── Live activity feed ────────────────────────────────────────────────────────
 function loadActivityFeed() {
   Promise.all([
+    fetch('/api/access/recent').then(r => r.json()).catch(() => []),
     fetch('/api/activity/recent').then(r => r.json()).catch(() => []),
-  ]).then(([activityLogs]) => {
+  ]).then(([accessLogs, activityLogs]) => {
     const rows = [];
-    // Activity log already contains "Logged in successfully", "Logged out", etc.
-    // We use only activityLogs here to avoid duplicate login rows that would appear
-    // if we also merged accessLogs (which record the same event under a different label).
-    activityLogs.forEach((log, i) => {
+    accessLogs.forEach(log => {
+      rows.push({
+        ip: log.ip || '—',
+        user: log.username || '—',
+        action: log.status === 'success' ? 'Login' :
+                log.status === 'blocked' ? 'Blocked' :
+                log.status === 'logout'  ? 'Logout'  :
+                log.status === 'failed'  ? 'Failed login' : log.status,
+        badgeClass: log.status === 'blocked' ? 'badge-danger' : 'badge-pink',
+        time: log.timestamp || '',
+      });
+    });
+    activityLogs.forEach(log => {
       rows.push({
         ip: log.ip || '—',
         user: log.username || '—',
         action: log.action || log.description || log.endpoint || '—',
         badgeClass: log.suspicious ? 'badge-danger' : 'badge-pink',
         time: log.timestamp || '',
-        _idx: i,  // preserve insertion order for same-second tiebreaking
       });
     });
-    // Stable sort: newer first; for equal timestamps keep original order (login
-    // is inserted before "Viewed Dashboard" so it stays above it in the feed).
     rows.sort((a, b) => {
       const ta = a.time ? new Date(a.time.replace(' PST', '')) : 0;
       const tb = b.time ? new Date(b.time.replace(' PST', '')) : 0;
-      if (tb - ta !== 0) return tb - ta;
-      return a._idx - b._idx;  // same timestamp → preserve insertion order
+      return tb - ta;
     });
     const feed = document.getElementById('live-activity-feed');
     if (!feed) return;
